@@ -1,13 +1,12 @@
 from decimal import Decimal
 from uuid import UUID
 from sqlalchemy import select
-from datasketch import MinHash
 from app.database import async_session
 from app.models.bill import Bill
 from app.models.minhash_signature import MinHashSignature
 from app.models.similarity_match import SimilarityMatch
 from app.models.ist_score import ISTScore
-from app.services.minhash import build_lsh, minhash_from_signature, jaccard_estimate, NUM_PERM
+from app.services.minhash import minhash_from_signature, jaccard_estimate
 
 async def match_co_bills():
     async with async_session() as session:
