@@ -6,8 +6,10 @@ from uuid import uuid4
 async def test_process_bill_stores_signature():
     from worker.tasks.ingest import _process_bill
 
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None
     mock_session = AsyncMock()
-    mock_session.execute.return_value.scalar_one_or_none.return_value = None
+    mock_session.execute.return_value = mock_result
     mock_session.flush = AsyncMock()
     mock_session.add = MagicMock()
     mock_session.commit = AsyncMock()
@@ -31,8 +33,10 @@ async def test_process_bill_stores_bill_only_when_no_text():
     from worker.tasks.ingest import _process_bill
     from app.models.minhash_signature import MinHashSignature
 
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None
     mock_session = AsyncMock()
-    mock_session.execute.return_value.scalar_one_or_none.return_value = None
+    mock_session.execute.return_value = mock_result
     mock_session.add = MagicMock()
     mock_session.commit = AsyncMock()
     mock_cache = AsyncMock()
@@ -95,8 +99,10 @@ async def test_ingest_downloads_changed_dataset():
     mock_cache = AsyncMock()
     mock_cache.get_dataset_hash.return_value = "old_hash"
 
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None
     mock_session = AsyncMock()
-    mock_session.execute.return_value.scalar_one_or_none.return_value = None
+    mock_session.execute.return_value = mock_result
     mock_session.add = MagicMock()
     mock_session.flush = AsyncMock()
     mock_session.commit = AsyncMock()

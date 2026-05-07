@@ -1,5 +1,4 @@
 import base64
-import inspect
 import io
 import json
 import zipfile
@@ -71,8 +70,6 @@ async def _process_bill(session, cache, bill: dict, state: str) -> None:
 
     existing = await session.execute(select(Bill).where(Bill.legiscan_id == legiscan_id))
     db_bill = existing.scalar_one_or_none()
-    if inspect.iscoroutine(db_bill):
-        db_bill = await db_bill
     if not db_bill:
         db_bill = Bill(
             legiscan_id=legiscan_id,
