@@ -10,7 +10,7 @@ LegiLens is a public transparency tool that measures the "Friction Gap" in the C
 
 Most legislative analysis tells you *what* a bill does. LegiLens tells you *where it came from* and *who it serves*.
 
-The core question: when a Colorado bill is introduced, is it locally authored — or is it a copy-paste import from a national template written by a lobbying organization?
+The core question: When a Colorado bill is introduced, is it locally authored, or is it a copy-paste import from a national template written by a lobbying organization?
 
 **The Influence & Source Tracker (IST)** answers that. It computes cross-state text similarity across 50-state legislation using MinHash locality-sensitive hashing. When a Colorado bill shares >70% identical language with bills introduced in other states, it gets flagged.
 
@@ -20,14 +20,14 @@ That's not an opinion. That's a measurement.
 
 ## The modules
 
-**IST — Influence & Source Tracker** *(live, MVP)*
+**IST — Influence & Source Tracker** *(MVP)*
 Cross-state text reuse detection. Compares every Colorado bill against a national corpus of 190,000+ bills. Produces a Source Authenticity Score (0–100). Below 30 = copycat alert.
 
 **SNP — Signal-to-Noise Processor** *(coming)*
 Measures how much committee and floor time gets spent on the actual bill versus campaign-style grandstanding. Quantifies the time-cost of performative politics.
 
 **ALE — Administrative Logic Engine** *(coming)*
-RAG system grounded in Colorado Revised Statutes and agency SOPs. Flags when legislative claims contradict existing law, geography, or technical standards.
+RAG system grounded in Colorado Revised Statutes and agency SOPs. Flags when legislative claims contradict existing law, geography, scientific, or technical standards.
 
 **CGE — Common Good Evaluator** *(coming)*
 Analyzes the distribution of a bill's financial impact. Detects fee-shifting (flat fees that hit everyone equally instead of graduated taxes) and tax carve-outs that benefit narrow interests.
