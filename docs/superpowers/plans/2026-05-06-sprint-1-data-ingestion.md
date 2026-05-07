@@ -537,6 +537,8 @@ git commit -m "feat: add Alembic migrations for initial schema"
 - Create: `backend/app/services/legiscan.py`
 - Test: `backend/tests/test_legiscan.py`
 
+**API strategy:** Use `getDatasetList` + `getDataset` for bulk nightly syncs (one zip per session, not one call per bill). Reserve `getBillText` for Phase 3 on-demand Pro API calls only. This keeps monthly usage well under the 30k public-tier limit.
+
 - [ ] **Step 1: Write failing tests**
 
 ```python
@@ -549,21 +551,37 @@ from app.services.legiscan import LegiScanClient
 def client():
     return LegiScanClient(api_key="test_key")
 
-async def test_get_bill_list_returns_bills(client):
-    mock_response = {"status": "OK", "bills": [{"bill_id": 1, "number": "SB-1"}]}
+async def test_get_dataset_list_returns_sessions(client):
+    mock_response = {
+        "status": "OK",
+        "datasetlist": [
+            {"session_id": 1, "state": "CO", "session_name": "2024A", "access_key": "abc123", "dataset_hash": "aaa"},
+            {"session_id": 2, "state": "TX", "session_name": "2024R", "access_key": "def456", "dataset_hash": "bbb"},
+        ]
+    }
     with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
         mock_get.return_value.json.return_value = mock_response
         mock_get.return_value.raise_for_status = lambda: None
-        result = await client.get_bill_list("CO")
-    assert result == [{"bill_id": 1, "number": "SB-1"}]
+        result = await client.get_dataset_list()
+    assert len(result) == 2
+    assert result[0]["state"] == "CO"
+    assert result[0]["dataset_hash"] == "aaa"
 
-async def test_get_bill_list_empty_on_missing_key(client):
+async def test_get_dataset_list_returns_empty_on_missing_key(client):
     mock_response = {"status": "OK"}
     with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
         mock_get.return_value.json.return_value = mock_response
         mock_get.return_value.raise_for_status = lambda: None
-        result = await client.get_bill_list("ZZ")
+        result = await client.get_dataset_list()
     assert result == []
+
+async def test_get_dataset_returns_bytes(client):
+    fake_zip = b"PK\x03\x04fakezipbytes"
+    with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value.content = fake_zip
+        mock_get.return_value.raise_for_status = lambda: None
+        result = await client.get_dataset("abc123")
+    assert result == fake_zip
 
 async def test_get_bill_text_returns_text(client):
     mock_response = {"status": "OK", "bill": {"texts": [{"doc": "The bill text here."}]}}
@@ -601,14 +619,22 @@ LEGISCAN_BASE = "https://api.legiscan.com/"
 class LegiScanClient:
     def __init__(self, api_key: str):
         self.api_key = api_key
-        self._http = httpx.AsyncClient(base_url=LEGISCAN_BASE, timeout=30)
+        self._http = httpx.AsyncClient(base_url=LEGISCAN_BASE, timeout=60)
 
-    async def get_bill_list(self, state: str) -> list[dict]:
-        resp = await self._http.get("/", params={"key": self.api_key, "op": "getBillList", "state": state})
+    async def get_dataset_list(self) -> list[dict]:
+        """Returns all sessions with their change hashes. One call covers all 50 states."""
+        resp = await self._http.get("/", params={"key": self.api_key, "op": "getDatasetList"})
         resp.raise_for_status()
-        return resp.json().get("bills", [])
+        return resp.json().get("datasetlist", [])
+
+    async def get_dataset(self, access_key: str) -> bytes:
+        """Downloads a full session dataset as a zip. Called only when dataset_hash changed."""
+        resp = await self._http.get("/", params={"key": self.api_key, "op": "getDataset", "access_key": access_key})
+        resp.raise_for_status()
+        return resp.content
 
     async def get_bill_text(self, bill_id: int) -> str | None:
+        """Fetches individual bill text. Phase 3 Pro API calls only — not used in Phase 1."""
         resp = await self._http.get("/", params={"key": self.api_key, "op": "getBill", "id": bill_id})
         resp.raise_for_status()
         texts = resp.json().get("bill", {}).get("texts", [])
@@ -626,13 +652,13 @@ class LegiScanClient:
 cd backend && pytest tests/test_legiscan.py -v
 ```
 
-Expected: all 4 `PASSED`
+Expected: all 5 `PASSED`
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add backend/app/services/legiscan.py backend/tests/test_legiscan.py
-git commit -m "feat: add LegiScan async HTTP client"
+git commit -m "feat: add LegiScan async HTTP client (getDataset bulk, getBillText Phase 3 only)"
 ```
 
 ---
@@ -686,7 +712,36 @@ cd backend && pytest tests/test_redis_cache.py -v
 
 Expected: `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement redis_cache.py**
+- [ ] **Step 3: Write failing tests for dataset hash methods**
+
+Add these tests to `backend/tests/test_redis_cache.py` (append after the existing 3 tests):
+
+```python
+async def test_set_and_get_dataset_hash(cache):
+    with patch.object(cache._redis, "set", new_callable=AsyncMock) as mock_set, \
+         patch.object(cache._redis, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = b"abc123hash"
+        await cache.set_dataset_hash(1001, "abc123hash")
+        result = await cache.get_dataset_hash(1001)
+    assert result == "abc123hash"
+    mock_set.assert_called_once()
+
+async def test_get_dataset_hash_returns_none_on_miss(cache):
+    with patch.object(cache._redis, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = None
+        result = await cache.get_dataset_hash(9999)
+    assert result is None
+```
+
+- [ ] **Step 4: Run — verify new tests fail**
+
+```bash
+cd backend && pytest tests/test_redis_cache.py -v
+```
+
+Expected: first 3 `PASSED`, last 2 `FAILED` (method not yet defined)
+
+- [ ] **Step 5: Implement redis_cache.py**
 
 ```python
 # backend/app/services/redis_cache.py
@@ -711,23 +766,36 @@ class RedisCache:
             return None
         return zlib.decompress(data).decode("utf8")
 
+    async def get_dataset_hash(self, session_id: int) -> str | None:
+        """Returns the last-seen dataset_hash for a session, or None if never synced."""
+        key = f"datasets:{session_id}:hash"
+        data = await self._redis.get(key)
+        if data is None:
+            return None
+        return data.decode("utf8")
+
+    async def set_dataset_hash(self, session_id: int, hash_value: str) -> None:
+        """Persists dataset_hash after a successful sync. No TTL — survives restarts."""
+        key = f"datasets:{session_id}:hash"
+        await self._redis.set(key, hash_value.encode("utf8"))
+
     async def close(self):
         await self._redis.aclose()
 ```
 
-- [ ] **Step 4: Run — verify pass**
+- [ ] **Step 6: Run — verify all pass**
 
 ```bash
 cd backend && pytest tests/test_redis_cache.py -v
 ```
 
-Expected: all 3 `PASSED`
+Expected: all 5 `PASSED`
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add backend/app/services/redis_cache.py backend/tests/test_redis_cache.py
-git commit -m "feat: add zlib-compressed Redis cache service"
+git commit -m "feat: add zlib-compressed Redis cache with dataset change_hash tracking"
 ```
 
 ---
@@ -969,15 +1037,18 @@ git commit -m "feat: add difflib snippet extractor with sentence context"
 - Create: `backend/worker/tasks/ingest.py`
 - Test: `backend/tests/test_ingest.py`
 
+**Strategy:** Use `getDatasetList` (1 call) to get all sessions + change hashes. Skip sessions whose `dataset_hash` matches the stored hash in Redis. Download changed sessions as zips via `getDataset`. Parse bills from zip in memory — text is base64-encoded inside each bill JSON. Never call `getBillText` here; that is Phase 3 only.
+
 - [ ] **Step 1: Write failing tests**
 
 ```python
 # backend/tests/test_ingest.py
+import base64
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-async def test_process_bill_stores_signature(tmp_path):
+async def test_process_bill_stores_signature():
     from worker.tasks.ingest import _process_bill
 
     mock_session = AsyncMock()
@@ -985,31 +1056,105 @@ async def test_process_bill_stores_signature(tmp_path):
     mock_session.flush = AsyncMock()
     mock_session.add = MagicMock()
     mock_session.commit = AsyncMock()
-
-    mock_client = AsyncMock()
     mock_cache = AsyncMock()
 
-    bill_meta = {"bill_id": 42, "number": "SB-1", "title": "Test Bill", "session": "2024A"}
-    bill_text = "The commission shall establish fees not to exceed one hundred dollars per application submitted."
+    raw_text = "The commission shall establish fees not to exceed one hundred dollars per application submitted."
+    bill_data = {
+        "bill_id": 42,
+        "number": "SB-1",
+        "title": "Test Bill",
+        "session": {"session_name": "2024A"},
+        "texts": [{"doc": base64.b64encode(raw_text.encode()).decode()}],
+    }
 
-    mock_client.get_bill_text.return_value = bill_text
-
-    await _process_bill(mock_session, mock_client, mock_cache, bill_meta, "TX", is_co=False)
+    await _process_bill(mock_session, mock_cache, bill_data, "TX")
 
     mock_session.add.assert_called()
-    mock_cache.set_bill_text.assert_called_once_with(42, bill_text)
+    mock_cache.set_bill_text.assert_called_once_with(42, raw_text)
 
-async def test_process_bill_skips_when_no_text():
+async def test_process_bill_stores_bill_only_when_no_text():
     from worker.tasks.ingest import _process_bill
+    from app.models.minhash_signature import MinHashSignature
 
     mock_session = AsyncMock()
-    mock_client = AsyncMock()
-    mock_client.get_bill_text.return_value = None
+    mock_session.execute.return_value.scalar_one_or_none.return_value = None
+    mock_session.add = MagicMock()
+    mock_session.commit = AsyncMock()
     mock_cache = AsyncMock()
 
-    await _process_bill(mock_session, mock_client, mock_cache, {"bill_id": 1}, "TX", is_co=False)
+    bill_data = {
+        "bill_id": 1,
+        "number": "HB-1",
+        "title": "No Text Bill",
+        "session": {"session_name": "2024A"},
+        "texts": [],
+    }
 
-    mock_session.add.assert_not_called()
+    await _process_bill(mock_session, mock_cache, bill_data, "TX")
+
+    added = [call.args[0] for call in mock_session.add.call_args_list]
+    assert not any(isinstance(obj, MinHashSignature) for obj in added)
+    mock_cache.set_bill_text.assert_not_called()
+
+async def test_ingest_skips_unchanged_dataset():
+    from worker.tasks.ingest import ingest_all_states
+
+    mock_client = AsyncMock()
+    mock_client.get_dataset_list.return_value = [
+        {"session_id": 1, "state": "CO", "access_key": "abc", "dataset_hash": "same_hash"}
+    ]
+    mock_cache = AsyncMock()
+    mock_cache.get_dataset_hash.return_value = "same_hash"
+
+    with patch("worker.tasks.ingest.LegiScanClient", return_value=mock_client), \
+         patch("worker.tasks.ingest.RedisCache", return_value=mock_cache):
+        await ingest_all_states()
+
+    mock_client.get_dataset.assert_not_called()
+
+async def test_ingest_downloads_changed_dataset():
+    import io, json, zipfile
+    from worker.tasks.ingest import ingest_all_states
+
+    raw_text = "The commission shall establish fees."
+    bill_json = json.dumps({
+        "bill": {
+            "bill_id": 99,
+            "number": "HB-99",
+            "title": "Changed Bill",
+            "session": {"session_name": "2024A"},
+            "texts": [{"doc": base64.b64encode(raw_text.encode()).decode()}],
+        }
+    }).encode()
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("99.json", bill_json)
+    zip_bytes = buf.getvalue()
+
+    mock_client = AsyncMock()
+    mock_client.get_dataset_list.return_value = [
+        {"session_id": 2, "state": "TX", "access_key": "xyz", "dataset_hash": "new_hash"}
+    ]
+    mock_client.get_dataset.return_value = zip_bytes
+
+    mock_cache = AsyncMock()
+    mock_cache.get_dataset_hash.return_value = "old_hash"
+
+    mock_session = AsyncMock()
+    mock_session.execute.return_value.scalar_one_or_none.return_value = None
+    mock_session.add = MagicMock()
+    mock_session.flush = AsyncMock()
+    mock_session.commit = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("worker.tasks.ingest.LegiScanClient", return_value=mock_client), \
+         patch("worker.tasks.ingest.RedisCache", return_value=mock_cache), \
+         patch("worker.tasks.ingest.async_session", return_value=mock_session):
+        await ingest_all_states()
+
+    mock_client.get_dataset.assert_called_once_with("xyz")
+    mock_cache.set_dataset_hash.assert_called_once_with(2, "new_hash")
 ```
 
 - [ ] **Step 2: Run — verify fail**
@@ -1030,7 +1175,10 @@ touch backend/worker/__init__.py backend/worker/tasks/__init__.py
 
 ```python
 # backend/worker/tasks/ingest.py
-import os
+import base64
+import io
+import json
+import zipfile
 from sqlalchemy import select
 from app.database import async_session
 from app.models.bill import Bill
@@ -1040,49 +1188,86 @@ from app.services.minhash import compute_minhash
 from app.services.redis_cache import RedisCache
 from app.config import settings
 
-ALL_STATES = [
-    "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA",
-    "KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
-    "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT",
-    "VA","WA","WV","WI","WY",
-]
 
 async def ingest_all_states():
     client = LegiScanClient(api_key=settings.legiscan_api_key)
     cache = RedisCache(url=settings.redis_url)
     try:
+        datasets = await client.get_dataset_list()
         async with async_session() as session:
-            for state in ALL_STATES:
-                bills = await client.get_bill_list(state)
-                for bill_meta in bills:
-                    await _process_bill(session, client, cache, bill_meta, state, is_co=(state == "CO"))
+            for ds in datasets:
+                session_id = ds["session_id"]
+                current_hash = ds["dataset_hash"]
+
+                stored_hash = await cache.get_dataset_hash(session_id)
+                if stored_hash == current_hash:
+                    continue  # dataset unchanged since last sync
+
+                zip_bytes = await client.get_dataset(ds["access_key"])
+                bills = _parse_dataset_zip(zip_bytes)
+                for bill in bills:
+                    await _process_bill(session, cache, bill, ds["state"])
+
+                await cache.set_dataset_hash(session_id, current_hash)
     finally:
         await client.close()
         await cache.close()
 
-async def _process_bill(session, client, cache, bill_meta, state, is_co: bool):
-    legiscan_id = bill_meta["bill_id"]
-    text = await client.get_bill_text(legiscan_id)
-    if not text:
-        return
+
+def _parse_dataset_zip(zip_bytes: bytes) -> list[dict]:
+    """Extracts bill dicts from a LegiScan dataset zip. Each file is a bill JSON."""
+    bills = []
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+        for name in zf.namelist():
+            if not name.endswith(".json"):
+                continue
+            with zf.open(name) as f:
+                data = json.load(f)
+            bill = data.get("bill", data)
+            bills.append(bill)
+    return bills
+
+
+def _extract_text(bill: dict) -> str | None:
+    """Base64-decodes bill text from dataset bill record. Returns None if unavailable."""
+    texts = bill.get("texts", [])
+    if not texts:
+        return None
+    doc = texts[-1].get("doc", "")
+    if not doc:
+        return None
+    try:
+        return base64.b64decode(doc).decode("utf8")
+    except Exception:
+        return None
+
+
+async def _process_bill(session, cache, bill: dict, state: str) -> None:
+    legiscan_id = bill["bill_id"]
+    is_co = state == "CO"
+    text = _extract_text(bill)
 
     existing = await session.execute(select(Bill).where(Bill.legiscan_id == legiscan_id))
-    bill = existing.scalar_one_or_none()
-    if not bill:
-        bill = Bill(
+    db_bill = existing.scalar_one_or_none()
+    if not db_bill:
+        db_bill = Bill(
             legiscan_id=legiscan_id,
             state=state,
-            session=bill_meta.get("session", ""),
-            bill_number=bill_meta.get("number", ""),
-            title=bill_meta.get("title", ""),
+            session=bill.get("session", {}).get("session_name", ""),
+            bill_number=bill.get("number", ""),
+            title=bill.get("title", ""),
             is_corpus_only=not is_co,
             full_text=text if is_co else None,
         )
-        session.add(bill)
+        session.add(db_bill)
         await session.flush()
 
+    if not text:
+        await session.commit()
+        return  # no text = no MinHash; Phase 3 will mark ghost if ever matched
+
     m = compute_minhash(text)
-    sig = MinHashSignature(bill_id=bill.id, signature=m.hashvalues.tolist())
+    sig = MinHashSignature(bill_id=db_bill.id, signature=m.hashvalues.tolist())
     session.add(sig)
     await session.commit()
     await cache.set_bill_text(legiscan_id, text)
@@ -1094,13 +1279,13 @@ async def _process_bill(session, client, cache, bill_meta, state, is_co: bool):
 cd backend && pytest tests/test_ingest.py -v
 ```
 
-Expected: both `PASSED`
+Expected: all 4 `PASSED`
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add backend/worker/ backend/tests/test_ingest.py
-git commit -m "feat: Phase 1 ingest worker — LegiScan fetch, MinHash, Redis cache"
+git commit -m "feat: Phase 1 ingest worker — getDataset bulk sync with change_hash tracking"
 ```
 
 ---
