@@ -31,7 +31,7 @@ def upgrade():
             last_updated TIMESTAMPTZ
         )
     """)
-    op.execute("CREATE INDEX ON bills (state, is_corpus_only)")
+    op.execute("CREATE INDEX idx_bills_state_active ON bills (state, is_corpus_only)")
     op.execute("""
         CREATE INDEX ON bills USING GIN (full_text gin_trgm_ops)
         WHERE is_corpus_only = FALSE
@@ -45,7 +45,7 @@ def upgrade():
             computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
     """)
-    op.execute("CREATE INDEX ON minhash_signatures (bill_id)")
+    op.execute("CREATE INDEX idx_minhash_bill_id ON minhash_signatures (bill_id)")
 
     op.execute("""
         CREATE TABLE ist_scores (
@@ -56,7 +56,7 @@ def upgrade():
             analyzed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
     """)
-    op.execute("CREATE INDEX ON ist_scores (bill_id)")
+    op.execute("CREATE INDEX idx_ist_scores_bill_id ON ist_scores (bill_id)")
 
     op.execute("""
         CREATE TABLE similarity_matches (
@@ -77,7 +77,7 @@ def upgrade():
         CREATE INDEX idx_matches_bill_status
         ON similarity_matches (bill_id, snippet_status)
     """)
-    op.execute("CREATE INDEX ON similarity_matches (matched_bill_id)")
+    op.execute("CREATE INDEX idx_matches_matched_bill_id ON similarity_matches (matched_bill_id)")
 
     op.execute("""
         CREATE TABLE friction_tags (
@@ -88,7 +88,7 @@ def upgrade():
             evidence TEXT
         )
     """)
-    op.execute("CREATE INDEX ON friction_tags (bill_id)")
+    op.execute("CREATE INDEX idx_friction_tags_bill_id ON friction_tags (bill_id)")
 
 def downgrade():
     op.execute("DROP TABLE IF EXISTS friction_tags")
