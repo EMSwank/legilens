@@ -38,3 +38,10 @@ def test_context_before_is_preceding_sentence():
     snippets = extract_snippets(co, src)
     assert len(snippets) >= 1
     assert "Intro sentence" in snippets[0]["co_context_before"] or snippets[0]["co_context_before"] == ""
+
+def test_context_after_is_following_sentence():
+    co = "Intro sentence. The commission shall establish fees not to exceed one hundred dollars per application. Outro sentence."
+    src = "Preamble sentence. The commission shall establish fees not to exceed one hundred dollars per application. Closing sentence."
+    snippets = extract_snippets(co, src)
+    assert len(snippets) >= 1
+    assert "Outro sentence" in snippets[0]["co_context_after"] or snippets[0]["co_context_after"] == ""

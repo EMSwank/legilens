@@ -55,3 +55,11 @@ async def test_get_bill_text_returns_none_when_no_texts(client):
         mock_get.return_value.raise_for_status = lambda: None
         result = await client.get_bill_text(99)
     assert result is None
+
+async def test_get_bill_text_returns_none_when_doc_is_none(client):
+    mock_response = {"status": "OK", "bill": {"texts": [{"doc": None}]}}
+    with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value.json = AsyncMock(return_value=mock_response)
+        mock_get.return_value.raise_for_status = lambda: None
+        result = await client.get_bill_text(12345)
+    assert result is None
