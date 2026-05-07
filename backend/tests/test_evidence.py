@@ -1,5 +1,4 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 async def test_evidence_sets_verified_when_text_available():
