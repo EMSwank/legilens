@@ -115,17 +115,25 @@ evidence            TEXT
 
 ## 4. IST Worker Pipeline
 
+### MinHash parameters (datasketch library)
+```python
+num_perm = 128       # must match across all bills — never change post-ingest
+lsh_threshold = 0.7  # Jaccard threshold; aligns with copycat_alert cutoff (score < 30)
+lsh = MinHashLSH(threshold=lsh_threshold, num_perm=num_perm)
+```
+These values are fixed. Changing `num_perm` invalidates all stored signatures and requires full re-ingest.
+
 ### Phase 1 — Ingest (nightly, all states via LegiScan public API)
 1. Fetch new/updated bills for all 50 states
 2. Tokenize bill text into k-shingles (in-memory)
-3. Compute 128-band MinHash signature
+3. Compute MinHash signature (`num_perm=128`)
 4. Store signature + metadata in Postgres
 5. Cache compressed text in Redis: `bills:{legiscan_id}:text` → `zlib.compress(text)`, TTL 24h
 6. Discard raw text from memory — never persisted for corpus bills
 
 ### Phase 2 — Match (triggered after CO bill ingest, LegiScan public API tier)
-1. Compute MinHash for incoming CO bill
-2. LSH bucket comparison against 190k+ stored signatures
+1. Compute MinHash for incoming CO bill (`num_perm=128`)
+2. LSH bucket comparison against 190k+ stored signatures (`threshold=0.7`)
 3. Identify candidates with Jaccard similarity > 0.70
 4. Write `similarity_matches` rows with `snippet_status = 'pending'`
 5. Write `ist_scores` row
@@ -137,8 +145,22 @@ evidence            TEXT
    - Cache miss: LegiScan Pro fetch → zlib compress → cache → Python memory
    - If text unavailable: set `snippet_status = 'source_verified_text_missing'`
 2. Run `difflib.SequenceMatcher` on CO text vs corpus text in memory
-3. Extract matching blocks > 50 chars as `{co, source}` snippet pairs
-4. Write `matched_snippets` JSONB + set `snippet_status = 'verified'`
+3. Extract matching blocks > 50 chars; include 1 sentence of surrounding context on each side
+4. Store as `{co_context_before, co_match, co_context_after, source_context_before, source_match, source_context_after}`
+5. Write `matched_snippets` JSONB + set `snippet_status = 'verified'`
+
+**Snippet JSONB shape:**
+```json
+{
+  "co_context_before": "The legislature finds that...",
+  "co_match": "The commission shall establish fees not to exceed...",
+  "co_context_after": "Such fees shall be deposited...",
+  "source_context_before": "The legislature finds that...",
+  "source_match": "The commission shall establish fees not to exceed...",
+  "source_context_after": "Such fees shall be deposited..."
+}
+```
+Context sentences prevent snippets feeling clipped when shared. Copy-to-clipboard uses `co_match` + `source_match` only (tight format); full context renders in UI.
 
 **Note:** API never triggers Phase 3. API is read-only over Postgres. Worker owns all LegiScan calls.
 
@@ -149,6 +171,22 @@ evidence            TEXT
 ### Middleware
 ```python
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# CORS — restrict to Vercel frontend origin
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://legilens.co", "https://*.vercel.app"],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
+```
+
+**User-Agent policy:** Requests without a `User-Agent` header return `400 Bad Request`. Enforced via FastAPI dependency on all routes. Blocks naive scrapers; legitimate researchers and browsers always send UA strings.
+
+```python
+async def require_user_agent(user_agent: str | None = Header(default=None)):
+    if not user_agent:
+        raise HTTPException(status_code=400, detail="User-Agent required")
 ```
 
 ### Endpoints
