@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+.DS_Store?
+._*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+out/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
