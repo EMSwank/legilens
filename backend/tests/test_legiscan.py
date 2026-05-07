@@ -3,8 +3,10 @@ from unittest.mock import AsyncMock, patch
 from app.services.legiscan import LegiScanClient
 
 @pytest.fixture
-def client():
-    return LegiScanClient(api_key="test_key")
+async def client():
+    c = LegiScanClient(api_key="test_key")
+    yield c
+    await c.close()
 
 async def test_get_dataset_list_returns_sessions(client):
     mock_response = {
