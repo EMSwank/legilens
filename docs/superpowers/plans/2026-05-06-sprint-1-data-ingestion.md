@@ -1,6 +1,6 @@
 # Sprint 1: Data Ingestion Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build the Python worker that ingests bills from LegiScan, computes MinHash signatures, finds cross-state matches, and extracts matching snippets into Postgres.
 
@@ -67,7 +67,7 @@ backend/
 - Create: `backend/app/__init__.py`
 - Create: `backend/app/config.py`
 
-- [ ] **Step 1: Create pyproject.toml**
+- [x] **Step 1: Create pyproject.toml**
 
 ```toml
 # backend/pyproject.toml
@@ -102,7 +102,7 @@ dev = [
 asyncio_mode = "auto"
 ```
 
-- [ ] **Step 2: Create .env.example**
+- [x] **Step 2: Create .env.example**
 
 ```bash
 # backend/.env.example
@@ -112,7 +112,7 @@ LEGISCAN_API_KEY=your_key_here
 ALLOWED_ORIGINS=http://localhost:3000
 ```
 
-- [ ] **Step 3: Create app/config.py**
+- [x] **Step 3: Create app/config.py**
 
 ```python
 # backend/app/config.py
@@ -129,7 +129,7 @@ class Settings(BaseSettings):
 settings = Settings()
 ```
 
-- [ ] **Step 4: Install dependencies and verify**
+- [x] **Step 4: Install dependencies and verify**
 
 ```bash
 cd backend
@@ -139,7 +139,7 @@ python -c "from app.config import settings; print('config OK')"
 
 Expected: `config OK`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/pyproject.toml backend/.env.example backend/app/__init__.py backend/app/config.py
@@ -159,7 +159,7 @@ git commit -m "chore: backend project scaffold and config"
 - Create: `backend/app/models/friction_tag.py`
 - Create: `backend/app/database.py`
 
-- [ ] **Step 1: Write failing import test**
+- [x] **Step 1: Write failing import test**
 
 ```python
 # backend/tests/test_models_import.py
@@ -173,7 +173,7 @@ def test_models_importable():
     assert MinHashSignature.__tablename__ == "minhash_signatures"
 ```
 
-- [ ] **Step 2: Run — verify fail**
+- [x] **Step 2: Run — verify fail**
 
 ```bash
 cd backend && pytest tests/test_models_import.py -v
@@ -181,7 +181,7 @@ cd backend && pytest tests/test_models_import.py -v
 
 Expected: `ModuleNotFoundError`
 
-- [ ] **Step 3: Create base.py**
+- [x] **Step 3: Create base.py**
 
 ```python
 # backend/app/models/base.py
@@ -191,7 +191,7 @@ class Base(DeclarativeBase):
     pass
 ```
 
-- [ ] **Step 4: Create bill.py**
+- [x] **Step 4: Create bill.py**
 
 ```python
 # backend/app/models/bill.py
@@ -219,7 +219,7 @@ class Bill(Base):
     last_updated: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 ```
 
-- [ ] **Step 5: Create minhash_signature.py**
+- [x] **Step 5: Create minhash_signature.py**
 
 Note: spec says `INTEGER[]` but datasketch hashvalues are uint32. `BIGINT[]` (signed int64) safely holds all uint32 values.
 
@@ -242,7 +242,7 @@ class MinHashSignature(Base):
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 ```
 
-- [ ] **Step 6: Create ist_score.py**
+- [x] **Step 6: Create ist_score.py**
 
 ```python
 # backend/app/models/ist_score.py
@@ -264,7 +264,7 @@ class ISTScore(Base):
     analyzed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 ```
 
-- [ ] **Step 7: Create similarity_match.py**
+- [x] **Step 7: Create similarity_match.py**
 
 ```python
 # backend/app/models/similarity_match.py
@@ -298,7 +298,7 @@ class SimilarityMatch(Base):
     snippet_status: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
 ```
 
-- [ ] **Step 8: Create friction_tag.py**
+- [x] **Step 8: Create friction_tag.py**
 
 ```python
 # backend/app/models/friction_tag.py
@@ -319,7 +319,7 @@ class FrictionTag(Base):
     evidence: Mapped[str | None] = mapped_column(Text)
 ```
 
-- [ ] **Step 9: Create database.py**
+- [x] **Step 9: Create database.py**
 
 ```python
 # backend/app/database.py
@@ -330,7 +330,7 @@ engine = create_async_engine(settings.database_url, echo=False, pool_pre_ping=Tr
 async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 ```
 
-- [ ] **Step 10: Run import test — verify pass**
+- [x] **Step 10: Run import test — verify pass**
 
 ```bash
 cd backend && pytest tests/test_models_import.py -v
@@ -338,7 +338,7 @@ cd backend && pytest tests/test_models_import.py -v
 
 Expected: `PASSED`
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add backend/app/models/ backend/app/database.py
@@ -354,13 +354,13 @@ git commit -m "feat: add SQLAlchemy ORM models and async database setup"
 - Create: `backend/alembic/env.py`
 - Create: `backend/alembic/versions/001_initial_schema.py`
 
-- [ ] **Step 1: Initialize Alembic**
+- [x] **Step 1: Initialize Alembic**
 
 ```bash
 cd backend && alembic init alembic
 ```
 
-- [ ] **Step 2: Replace alembic/env.py**
+- [x] **Step 2: Replace alembic/env.py**
 
 ```python
 # backend/alembic/env.py
@@ -412,7 +412,7 @@ else:
     run_migrations_online()
 ```
 
-- [ ] **Step 3: Create migration file**
+- [x] **Step 3: Create migration file**
 
 ```python
 # backend/alembic/versions/001_initial_schema.py
@@ -512,7 +512,7 @@ def downgrade():
     op.execute("DROP TABLE IF EXISTS bills")
 ```
 
-- [ ] **Step 4: Run migration against local Postgres**
+- [x] **Step 4: Run migration against local Postgres**
 
 Requires local Postgres running with `legilens` DB created.
 
@@ -522,7 +522,7 @@ cd backend && alembic upgrade head
 
 Expected: no errors, all tables created.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/alembic/ backend/alembic.ini
@@ -539,7 +539,7 @@ git commit -m "feat: add Alembic migrations for initial schema"
 
 **API strategy:** Use `getDatasetList` + `getDataset` for bulk nightly syncs (one zip per session, not one call per bill). Reserve `getBillText` for Phase 3 on-demand Pro API calls only. This keeps monthly usage well under the 30k public-tier limit.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```python
 # backend/tests/test_legiscan.py
@@ -600,7 +600,7 @@ async def test_get_bill_text_returns_none_when_no_texts(client):
     assert result is None
 ```
 
-- [ ] **Step 2: Run — verify fail**
+- [x] **Step 2: Run — verify fail**
 
 ```bash
 cd backend && pytest tests/test_legiscan.py -v
@@ -608,7 +608,7 @@ cd backend && pytest tests/test_legiscan.py -v
 
 Expected: `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement legiscan.py**
+- [x] **Step 3: Implement legiscan.py**
 
 ```python
 # backend/app/services/legiscan.py
@@ -646,7 +646,7 @@ class LegiScanClient:
         await self._http.aclose()
 ```
 
-- [ ] **Step 4: Run — verify pass**
+- [x] **Step 4: Run — verify pass**
 
 ```bash
 cd backend && pytest tests/test_legiscan.py -v
@@ -654,7 +654,7 @@ cd backend && pytest tests/test_legiscan.py -v
 
 Expected: all 5 `PASSED`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/app/services/legiscan.py backend/tests/test_legiscan.py
@@ -669,7 +669,7 @@ git commit -m "feat: add LegiScan async HTTP client (getDataset bulk, getBillTex
 - Create: `backend/app/services/redis_cache.py`
 - Test: `backend/tests/test_redis_cache.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```python
 # backend/tests/test_redis_cache.py
@@ -704,7 +704,7 @@ async def test_compression_reduces_size(cache):
     assert len(compressed) < len(text.encode("utf8"))
 ```
 
-- [ ] **Step 2: Run — verify fail**
+- [x] **Step 2: Run — verify fail**
 
 ```bash
 cd backend && pytest tests/test_redis_cache.py -v
@@ -712,7 +712,7 @@ cd backend && pytest tests/test_redis_cache.py -v
 
 Expected: `ModuleNotFoundError`
 
-- [ ] **Step 3: Write failing tests for dataset hash methods**
+- [x] **Step 3: Write failing tests for dataset hash methods**
 
 Add these tests to `backend/tests/test_redis_cache.py` (append after the existing 3 tests):
 
@@ -733,7 +733,7 @@ async def test_get_dataset_hash_returns_none_on_miss(cache):
     assert result is None
 ```
 
-- [ ] **Step 4: Run — verify new tests fail**
+- [x] **Step 4: Run — verify new tests fail**
 
 ```bash
 cd backend && pytest tests/test_redis_cache.py -v
@@ -741,7 +741,7 @@ cd backend && pytest tests/test_redis_cache.py -v
 
 Expected: first 3 `PASSED`, last 2 `FAILED` (method not yet defined)
 
-- [ ] **Step 5: Implement redis_cache.py**
+- [x] **Step 5: Implement redis_cache.py**
 
 ```python
 # backend/app/services/redis_cache.py
@@ -783,7 +783,7 @@ class RedisCache:
         await self._redis.aclose()
 ```
 
-- [ ] **Step 6: Run — verify all pass**
+- [x] **Step 6: Run — verify all pass**
 
 ```bash
 cd backend && pytest tests/test_redis_cache.py -v
@@ -791,7 +791,7 @@ cd backend && pytest tests/test_redis_cache.py -v
 
 Expected: all 5 `PASSED`
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/app/services/redis_cache.py backend/tests/test_redis_cache.py
@@ -806,7 +806,7 @@ git commit -m "feat: add zlib-compressed Redis cache with dataset change_hash tr
 - Create: `backend/app/services/minhash.py`
 - Test: `backend/tests/test_minhash.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```python
 # backend/tests/test_minhash.py
@@ -842,7 +842,7 @@ def test_signature_serializable_as_list():
     assert all(isinstance(v, int) for v in sig)
 ```
 
-- [ ] **Step 2: Run — verify fail**
+- [x] **Step 2: Run — verify fail**
 
 ```bash
 cd backend && pytest tests/test_minhash.py -v
@@ -850,7 +850,7 @@ cd backend && pytest tests/test_minhash.py -v
 
 Expected: `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement minhash.py**
+- [x] **Step 3: Implement minhash.py**
 
 ```python
 # backend/app/services/minhash.py
@@ -882,7 +882,7 @@ def build_lsh() -> MinHashLSH:
     return MinHashLSH(threshold=LSH_THRESHOLD, num_perm=NUM_PERM)
 ```
 
-- [ ] **Step 4: Run — verify pass**
+- [x] **Step 4: Run — verify pass**
 
 ```bash
 cd backend && pytest tests/test_minhash.py -v
@@ -890,7 +890,7 @@ cd backend && pytest tests/test_minhash.py -v
 
 Expected: all 5 `PASSED`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/app/services/minhash.py backend/tests/test_minhash.py
@@ -905,7 +905,7 @@ git commit -m "feat: add MinHash service (num_perm=128, threshold=0.7)"
 - Create: `backend/app/services/snippet_extractor.py`
 - Test: `backend/tests/test_snippet_extractor.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```python
 # backend/tests/test_snippet_extractor.py
@@ -951,7 +951,7 @@ def test_context_before_is_preceding_sentence():
     assert "Intro sentence" in snippets[0]["co_context_before"] or snippets[0]["co_context_before"] == ""
 ```
 
-- [ ] **Step 2: Run — verify fail**
+- [x] **Step 2: Run — verify fail**
 
 ```bash
 cd backend && pytest tests/test_snippet_extractor.py -v
@@ -959,7 +959,7 @@ cd backend && pytest tests/test_snippet_extractor.py -v
 
 Expected: `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement snippet_extractor.py**
+- [x] **Step 3: Implement snippet_extractor.py**
 
 ```python
 # backend/app/services/snippet_extractor.py
@@ -1014,7 +1014,7 @@ def _surrounding_sentence(
     return before, after
 ```
 
-- [ ] **Step 4: Run — verify pass**
+- [x] **Step 4: Run — verify pass**
 
 ```bash
 cd backend && pytest tests/test_snippet_extractor.py -v
@@ -1022,7 +1022,7 @@ cd backend && pytest tests/test_snippet_extractor.py -v
 
 Expected: all 5 `PASSED`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/app/services/snippet_extractor.py backend/tests/test_snippet_extractor.py
@@ -1039,7 +1039,7 @@ git commit -m "feat: add difflib snippet extractor with sentence context"
 
 **Strategy:** Use `getDatasetList` (1 call) to get all sessions + change hashes. Skip sessions whose `dataset_hash` matches the stored hash in Redis. Download changed sessions as zips via `getDataset`. Parse bills from zip in memory — text is base64-encoded inside each bill JSON. Never call `getBillText` here; that is Phase 3 only.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```python
 # backend/tests/test_ingest.py
@@ -1157,7 +1157,7 @@ async def test_ingest_downloads_changed_dataset():
     mock_cache.set_dataset_hash.assert_called_once_with(2, "new_hash")
 ```
 
-- [ ] **Step 2: Run — verify fail**
+- [x] **Step 2: Run — verify fail**
 
 ```bash
 cd backend && pytest tests/test_ingest.py -v
@@ -1165,13 +1165,13 @@ cd backend && pytest tests/test_ingest.py -v
 
 Expected: `ModuleNotFoundError`
 
-- [ ] **Step 3: Create worker/__init__.py and tasks/__init__.py**
+- [x] **Step 3: Create worker/__init__.py and tasks/__init__.py**
 
 ```bash
 touch backend/worker/__init__.py backend/worker/tasks/__init__.py
 ```
 
-- [ ] **Step 4: Implement ingest.py**
+- [x] **Step 4: Implement ingest.py**
 
 ```python
 # backend/worker/tasks/ingest.py
@@ -1273,7 +1273,7 @@ async def _process_bill(session, cache, bill: dict, state: str) -> None:
     await cache.set_bill_text(legiscan_id, text)
 ```
 
-- [ ] **Step 5: Run — verify pass**
+- [x] **Step 5: Run — verify pass**
 
 ```bash
 cd backend && pytest tests/test_ingest.py -v
@@ -1281,7 +1281,7 @@ cd backend && pytest tests/test_ingest.py -v
 
 Expected: all 4 `PASSED`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/worker/ backend/tests/test_ingest.py
@@ -1296,7 +1296,7 @@ git commit -m "feat: Phase 1 ingest worker — getDataset bulk sync with change_
 - Create: `backend/worker/tasks/match.py`
 - Test: `backend/tests/test_match.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```python
 # backend/tests/test_match.py
@@ -1345,7 +1345,7 @@ async def test_no_match_writes_score_of_100():
     assert scores[0].copycat_alert is False
 ```
 
-- [ ] **Step 2: Run — verify fail**
+- [x] **Step 2: Run — verify fail**
 
 ```bash
 cd backend && pytest tests/test_match.py -v
@@ -1353,7 +1353,7 @@ cd backend && pytest tests/test_match.py -v
 
 Expected: `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement match.py**
+- [x] **Step 3: Implement match.py**
 
 ```python
 # backend/worker/tasks/match.py
@@ -1426,7 +1426,7 @@ async def _find_matches_for_bill(session, co_bill_id: UUID, co_m, corpus_entries
     await session.commit()
 ```
 
-- [ ] **Step 4: Run — verify pass**
+- [x] **Step 4: Run — verify pass**
 
 ```bash
 cd backend && pytest tests/test_match.py -v
@@ -1434,7 +1434,7 @@ cd backend && pytest tests/test_match.py -v
 
 Expected: both `PASSED`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/worker/tasks/match.py backend/tests/test_match.py
@@ -1449,7 +1449,7 @@ git commit -m "feat: Phase 2 match worker — LSH comparison, IST scoring"
 - Create: `backend/worker/tasks/evidence.py`
 - Test: `backend/tests/test_evidence.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```python
 # backend/tests/test_evidence.py
@@ -1513,7 +1513,7 @@ async def test_evidence_sets_ghost_when_text_unavailable():
     assert mock_match.snippet_status == "source_verified_text_missing"
 ```
 
-- [ ] **Step 2: Run — verify fail**
+- [x] **Step 2: Run — verify fail**
 
 ```bash
 cd backend && pytest tests/test_evidence.py -v
@@ -1521,7 +1521,7 @@ cd backend && pytest tests/test_evidence.py -v
 
 Expected: `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement evidence.py**
+- [x] **Step 3: Implement evidence.py**
 
 ```python
 # backend/worker/tasks/evidence.py
@@ -1575,7 +1575,7 @@ async def _extract_evidence_for_match(session, match, cache, client):
     await session.commit()
 ```
 
-- [ ] **Step 4: Run — verify pass**
+- [x] **Step 4: Run — verify pass**
 
 ```bash
 cd backend && pytest tests/test_evidence.py -v
@@ -1583,7 +1583,7 @@ cd backend && pytest tests/test_evidence.py -v
 
 Expected: both `PASSED`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/worker/tasks/evidence.py backend/tests/test_evidence.py
@@ -1597,7 +1597,7 @@ git commit -m "feat: Phase 3 evidence worker — difflib snippet extraction, gho
 **Files:**
 - Create: `backend/worker/scheduler.py`
 
-- [ ] **Step 1: Implement scheduler.py**
+- [x] **Step 1: Implement scheduler.py**
 
 ```python
 # backend/worker/scheduler.py
@@ -1634,7 +1634,7 @@ if __name__ == "__main__":
     start()
 ```
 
-- [ ] **Step 2: Run full test suite**
+- [x] **Step 2: Run full test suite**
 
 ```bash
 cd backend && pytest tests/ -v
@@ -1642,7 +1642,7 @@ cd backend && pytest tests/ -v
 
 Expected: all tests `PASSED`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add backend/worker/scheduler.py
@@ -1653,7 +1653,7 @@ git commit -m "feat: APScheduler nightly pipeline (3am UTC)"
 
 ## Task 12: Merge Sprint 1
 
-- [ ] **Step 1: Run full test suite one final time**
+- [x] **Step 1: Run full test suite one final time**
 
 ```bash
 cd backend && pytest tests/ -v --tb=short
@@ -1661,7 +1661,7 @@ cd backend && pytest tests/ -v --tb=short
 
 Expected: all `PASSED`, no failures.
 
-- [ ] **Step 2: Merge to main**
+- [x] **Step 2: Merge to main**
 
 ```bash
 git checkout main
