@@ -42,5 +42,3 @@ class BillDetail(BaseModel):
     sponsors: dict | None
     ist_score: ISTScoreOut | None
     tags: list[FrictionTagOut]
-
-    model_config = {"from_attributes": True}

@@ -15,6 +15,14 @@ class SnippetItem(BaseModel):
 
 
 class GhostMessage(BaseModel):
+    """Synthesized at read time by the router when snippet_status == 'source_verified_text_missing'.
+
+    GhostMessages are never stored in the DB. The evidence worker sets
+    matched_snippets=None and snippet_status='source_verified_text_missing'; the
+    router converts that state into a GhostMessage for the API response. The
+    'kind' field is required for Pydantic v2 discriminated-union serialization.
+    """
+
     kind: Literal["ghost"] = "ghost"
     message: Literal["Source text unavailable for extraction"]
 
