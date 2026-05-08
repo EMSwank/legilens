@@ -62,8 +62,16 @@ MVP is under active development.
 | Sprint | Scope | Status |
 |--------|-------|--------|
 | Sprint 1 | Data ingestion, MinHash pipeline, nightly worker | ✅ Complete |
-| Sprint 2 | FastAPI endpoints, Pydantic models, asyncpg | 🔄 In progress |
-| Sprint 3 | Next.js frontend, WCAG 2.1 AA, Playwright E2E | ⏳ Planned |
+| Sprint 2 | FastAPI endpoints, Pydantic schemas, rate limiting | ✅ Complete |
+| Sprint 3 | Next.js frontend, WCAG 2.1 AA, Playwright E2E | 🔄 In progress |
+
+### Sprint 2 — what shipped
+
+- Read-only FastAPI app: `GET /bills`, `GET /bills/search`, `GET /bills/{id}`, `GET /bills/{id}/matches`, `GET /tags`, `GET /stats`
+- Pydantic v2 discriminated union for snippet responses: verified snippets (`kind: "snippet"`) vs. ghost messages (`kind: "ghost"`) when source bill text is unavailable
+- Async SQLAlchemy 2.0 with session rollback on exception
+- User-Agent guard (400 if missing), GZip + CORS middleware, slowapi rate limiting (60 req/min per IP)
+- 56 tests across all API routes
 
 Contributions, issue reports, and methodology critiques are welcome.
 

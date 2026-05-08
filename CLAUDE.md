@@ -24,7 +24,7 @@ To quantify the "Friction Gap" in the Colorado General Assembly by analyzing the
   * **Fee-Shifting Detection:** Identifies bills that use flat fees (regressive) to avoid the political friction of graduated taxes (progressive).  
   * **Extraction Analysis:** Highlights tax credits or carve-outs that benefit narrow special interests while depleting the General Fund for schools and public infrastructure.
 
-### **D. The Influence & Source Tracker (IST) \- NEW**
+### **D. The Influence & Source Tracker (IST)**
 
 * **Method:** Uses **Text Reuse Detection** (min-hashing or Smith-Waterman algorithms) to compare Colorado bill text against a national database of 50-state legislation and known "Model Bills."  
 * **Metric:** **Source Authenticity Score**.  
@@ -47,5 +47,35 @@ To quantify the "Friction Gap" in the Colorado General Assembly by analyzing the
 * **The "Taxpayer Burden" Shift:** A longitudinal chart showing the growth of fees vs. taxes, illustrating the "hidden" cost of political expediency.  
 * **The "Expert-to-Amateur" Ratio:** Compares time given to verified experts versus time taken by representatives to rebut them with non-factual anecdotes.  
 * **The "Influence Map":** A visual network showing how identical language travels from national think tanks into the Colorado House floor.
+
+## **5\. Current Implementation Status**
+
+| Sprint | Scope | Status |
+| :---- | :---- | :---- |
+| Sprint 1 | LegiScan ingestion, MinHash LSH pipeline, nightly worker, Postgres schema | ✅ Merged to main |
+| Sprint 2 | FastAPI read-only API, Pydantic v2 schemas, rate limiting, 56 tests | ✅ Merged to main |
+| Sprint 3 | Next.js 14 frontend, WCAG 2.1 AA, TanStack Query, Playwright E2E | 🔄 In progress |
+
+## **6\. Backend Architecture (Sprint 1 + 2)**
+
+```
+LegiScan API → backend/worker/ → Neon Postgres → backend/app/ (FastAPI) → Frontend
+```
+
+**Key files:**
+- `backend/app/main.py` — FastAPI app, GZip + CORS + slowapi middleware
+- `backend/app/dependencies.py` — async DB session (rollback on exception), User-Agent guard
+- `backend/app/routers/` — bills, matches, tags, stats
+- `backend/app/schemas/` — Pydantic v2: bill.py, match.py (discriminated union), stats.py
+- `backend/app/models/` — SQLAlchemy ORM: Bill, ISTScore, FrictionTag, SimilarityMatch
+- `backend/worker/tasks/evidence.py` — snippet extraction worker; ghost state when source text unavailable
+- `backend/worker/tasks/ingest.py` — LegiScan dataset sync, MinHash computation
+- `backend/tests/` — 56 pytest-asyncio tests, all using `dependency_overrides` (not patch)
+
+**Design decisions to remember:**
+- `GhostMessage` is synthesized by the router at read time — never stored in DB. `snippet_status == "source_verified_text_missing"` + `matched_snippets IS NULL` → ghost response.
+- Snippet dicts stored in DB include `kind: "snippet"` for Pydantic v2 discriminated union deserialization.
+- `BillDetail` is constructed manually in the route handler (no `from_attributes`); `ISTScoreOut` and `FrictionTagOut` use `from_attributes = True`.
+- `db.execute()` is async; `.scalars()`, `.scalar()`, `.all()`, `scalar_one_or_none()` are sync.
 
 Always invoke the using-superpowers skill at the start of a session.
