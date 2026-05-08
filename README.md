@@ -57,7 +57,13 @@ LegiScan API → Nightly Worker → Postgres → FastAPI → Next.js
 
 ## Status
 
-MVP is under active development. Sprint 1 (data ingestion + MinHash pipeline) is in progress.
+MVP is under active development.
+
+| Sprint | Scope | Status |
+|--------|-------|--------|
+| Sprint 1 | Data ingestion, MinHash pipeline, nightly worker | ✅ Complete |
+| Sprint 2 | FastAPI endpoints, Pydantic models, asyncpg | 🔄 In progress |
+| Sprint 3 | Next.js frontend, WCAG 2.1 AA, Playwright E2E | ⏳ Planned |
 
 Contributions, issue reports, and methodology critiques are welcome.
 
