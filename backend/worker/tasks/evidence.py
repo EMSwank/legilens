@@ -32,6 +32,7 @@ async def extract_all_pending_evidence():
         await client.close()
         await cache.close()
 
+
 async def _extract_evidence_for_match(session, match, cache, client):
     co_bill = await session.get(Bill, match.bill_id)
     corpus_bill = await session.get(Bill, match.matched_bill_id)
