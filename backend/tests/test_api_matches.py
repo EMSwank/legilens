@@ -144,3 +144,33 @@ async def test_pending_match_has_null_snippets(client):
     assert len(data) == 1
     assert data[0]["snippet_status"] == "pending"
     assert data[0]["matched_snippets"] is None
+
+
+async def test_matches_requires_user_agent(client):
+    c, app, get_db = client
+    resp = await c.get(f"/bills/{uuid4()}/matches", headers={"User-Agent": ""})
+    assert resp.status_code == 400
+
+
+async def test_empty_matches_returns_empty_list(client):
+    c, app, get_db = client
+    bill_id = uuid4()
+
+    mock_session = AsyncMock()
+    scalars_result = MagicMock()
+    scalars_result.all.return_value = []
+    execute_result = MagicMock()
+    execute_result.scalars.return_value = scalars_result
+    mock_session.execute.return_value = execute_result
+
+    async def override():
+        yield mock_session
+
+    app.dependency_overrides[get_db] = override
+    try:
+        resp = await c.get(f"/bills/{bill_id}/matches", headers={"User-Agent": "TestClient/1.0"})
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+    assert resp.json() == []
