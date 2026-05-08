@@ -1,6 +1,6 @@
 # Sprint 2: API Layer Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build the FastAPI read-only API layer that serves bill data, IST scores, and similarity matches to the frontend.
 
@@ -45,7 +45,7 @@ backend/
 - Create: `backend/app/schemas/match.py`
 - Create: `backend/app/schemas/stats.py`
 
-- [ ] **Step 1: Write failing import test**
+- [x] **Step 1: Write failing import test**
 
 ```python
 # backend/tests/test_schemas_import.py
@@ -56,7 +56,7 @@ def test_schemas_importable():
     assert BillDetail.model_fields["id"]
 ```
 
-- [ ] **Step 2: Run — verify fail**
+- [x] **Step 2: Run — verify fail**
 
 ```bash
 cd backend && pytest tests/test_schemas_import.py -v
@@ -64,7 +64,7 @@ cd backend && pytest tests/test_schemas_import.py -v
 
 Expected: `ModuleNotFoundError`
 
-- [ ] **Step 3: Create schemas/bill.py**
+- [x] **Step 3: Create schemas/bill.py**
 
 ```python
 # backend/app/schemas/bill.py
@@ -108,7 +108,7 @@ class BillDetail(BaseModel):
     model_config = {"from_attributes": True}
 ```
 
-- [ ] **Step 4: Create schemas/match.py**
+- [x] **Step 4: Create schemas/match.py**
 
 ```python
 # backend/app/schemas/match.py
@@ -139,7 +139,7 @@ class MatchOut(BaseModel):
     model_config = {"from_attributes": True}
 ```
 
-- [ ] **Step 5: Create schemas/stats.py**
+- [x] **Step 5: Create schemas/stats.py**
 
 ```python
 # backend/app/schemas/stats.py
@@ -155,7 +155,7 @@ class TagCountOut(BaseModel):
     count: int
 ```
 
-- [ ] **Step 6: Run import test — verify pass**
+- [x] **Step 6: Run import test — verify pass**
 
 ```bash
 cd backend && pytest tests/test_schemas_import.py -v
@@ -163,7 +163,7 @@ cd backend && pytest tests/test_schemas_import.py -v
 
 Expected: `PASSED`
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/app/schemas/
@@ -178,7 +178,7 @@ git commit -m "feat: Pydantic v2 response schemas for bills, matches, stats"
 - Create: `backend/app/dependencies.py`
 - Test: `backend/tests/test_dependencies.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```python
 # backend/tests/test_dependencies.py
@@ -197,7 +197,7 @@ async def test_require_user_agent_raises_without_header():
     assert "User-Agent" in exc.value.detail
 ```
 
-- [ ] **Step 2: Run — verify fail**
+- [x] **Step 2: Run — verify fail**
 
 ```bash
 cd backend && pytest tests/test_dependencies.py -v
@@ -205,7 +205,7 @@ cd backend && pytest tests/test_dependencies.py -v
 
 Expected: `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement dependencies.py**
+- [x] **Step 3: Implement dependencies.py**
 
 ```python
 # backend/app/dependencies.py
@@ -223,7 +223,7 @@ async def require_user_agent(user_agent: str | None = Header(default=None)) -> N
         raise HTTPException(status_code=400, detail="User-Agent header required")
 ```
 
-- [ ] **Step 4: Run — verify pass**
+- [x] **Step 4: Run — verify pass**
 
 ```bash
 cd backend && pytest tests/test_dependencies.py -v
@@ -231,7 +231,7 @@ cd backend && pytest tests/test_dependencies.py -v
 
 Expected: both `PASSED`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/app/dependencies.py backend/tests/test_dependencies.py
@@ -246,7 +246,7 @@ git commit -m "feat: shared FastAPI dependencies — db session, User-Agent guar
 - Create: `backend/app/routers/bills.py`
 - Test: `backend/tests/test_api_bills.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```python
 # backend/tests/test_api_bills.py
@@ -283,7 +283,7 @@ async def test_get_bill_detail_404_on_missing(client):
     assert resp.status_code == 404
 ```
 
-- [ ] **Step 2: Run — verify fail**
+- [x] **Step 2: Run — verify fail**
 
 ```bash
 cd backend && pytest tests/test_api_bills.py -v
@@ -291,7 +291,7 @@ cd backend && pytest tests/test_api_bills.py -v
 
 Expected: `ModuleNotFoundError` (app.main doesn't exist yet)
 
-- [ ] **Step 3: Create routers/bills.py**
+- [x] **Step 3: Create routers/bills.py**
 
 ```python
 # backend/app/routers/bills.py
@@ -378,7 +378,7 @@ async def get_bill(bill_id: UUID, db: AsyncSession = Depends(get_db)):
     )
 ```
 
-- [ ] **Step 4: Create app/main.py (minimal, enough to run tests)**
+- [x] **Step 4: Create app/main.py (minimal, enough to run tests)**
 
 ```python
 # backend/app/main.py
@@ -404,7 +404,7 @@ app.include_router(tags.router)
 app.include_router(stats.router)
 ```
 
-- [ ] **Step 5: Create stub routers for matches, tags, stats (so main.py imports don't fail)**
+- [x] **Step 5: Create stub routers for matches, tags, stats (so main.py imports don't fail)**
 
 ```python
 # backend/app/routers/matches.py
@@ -420,13 +420,13 @@ from fastapi import APIRouter
 router = APIRouter()
 ```
 
-- [ ] **Step 6: Create routers/__init__.py**
+- [x] **Step 6: Create routers/__init__.py**
 
 ```bash
 touch backend/app/routers/__init__.py backend/app/schemas/__init__.py
 ```
 
-- [ ] **Step 7: Run bills tests — verify pass**
+- [x] **Step 7: Run bills tests — verify pass**
 
 ```bash
 cd backend && pytest tests/test_api_bills.py -v
@@ -434,7 +434,7 @@ cd backend && pytest tests/test_api_bills.py -v
 
 Expected: all 3 `PASSED`
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add backend/app/main.py backend/app/routers/ backend/app/schemas/
@@ -449,7 +449,7 @@ git commit -m "feat: bills router — list, search, detail endpoints"
 - Modify: `backend/app/routers/matches.py`
 - Test: `backend/tests/test_api_matches.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```python
 # backend/tests/test_api_matches.py
@@ -518,7 +518,7 @@ async def test_ghost_match_returns_message(client):
     assert data[0]["matched_snippets"][0]["message"] == "Source text unavailable for extraction"
 ```
 
-- [ ] **Step 2: Run — verify fail**
+- [x] **Step 2: Run — verify fail**
 
 ```bash
 cd backend && pytest tests/test_api_matches.py -v
@@ -526,7 +526,7 @@ cd backend && pytest tests/test_api_matches.py -v
 
 Expected: `FAILED` (stub router returns nothing)
 
-- [ ] **Step 3: Implement matches.py**
+- [x] **Step 3: Implement matches.py**
 
 ```python
 # backend/app/routers/matches.py
@@ -570,7 +570,7 @@ async def get_matches(bill_id: UUID, db: AsyncSession = Depends(get_db)):
     return out
 ```
 
-- [ ] **Step 4: Run — verify pass**
+- [x] **Step 4: Run — verify pass**
 
 ```bash
 cd backend && pytest tests/test_api_matches.py -v
@@ -578,7 +578,7 @@ cd backend && pytest tests/test_api_matches.py -v
 
 Expected: both `PASSED`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/app/routers/matches.py backend/tests/test_api_matches.py
@@ -594,7 +594,7 @@ git commit -m "feat: matches router with ghost state and TypeAdapter validation"
 - Modify: `backend/app/routers/stats.py`
 - Test: `backend/tests/test_api_stats.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```python
 # backend/tests/test_api_stats.py
@@ -629,7 +629,7 @@ async def test_tags_returns_list(client):
     assert isinstance(resp.json(), list)
 ```
 
-- [ ] **Step 2: Run — verify fail**
+- [x] **Step 2: Run — verify fail**
 
 ```bash
 cd backend && pytest tests/test_api_stats.py -v
@@ -637,7 +637,7 @@ cd backend && pytest tests/test_api_stats.py -v
 
 Expected: `FAILED`
 
-- [ ] **Step 3: Implement stats.py**
+- [x] **Step 3: Implement stats.py**
 
 ```python
 # backend/app/routers/stats.py
@@ -665,7 +665,7 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
     )
 ```
 
-- [ ] **Step 4: Implement tags.py**
+- [x] **Step 4: Implement tags.py**
 
 ```python
 # backend/app/routers/tags.py
@@ -688,7 +688,7 @@ async def list_tags(db: AsyncSession = Depends(get_db)):
     return [TagCountOut(tag_type=row[0], count=row[1]) for row in result.all()]
 ```
 
-- [ ] **Step 5: Run all API tests**
+- [x] **Step 5: Run all API tests**
 
 ```bash
 cd backend && pytest tests/test_api_bills.py tests/test_api_matches.py tests/test_api_stats.py -v
@@ -696,7 +696,7 @@ cd backend && pytest tests/test_api_bills.py tests/test_api_matches.py tests/tes
 
 Expected: all `PASSED`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/app/routers/tags.py backend/app/routers/stats.py backend/tests/test_api_stats.py
@@ -710,7 +710,7 @@ git commit -m "feat: tags and stats routers"
 **Files:**
 - Modify: `backend/app/main.py`
 
-- [ ] **Step 1: Add slowapi rate limiting to main.py**
+- [x] **Step 1: Add slowapi rate limiting to main.py**
 
 ```python
 # backend/app/main.py — add these lines after existing imports
@@ -723,7 +723,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 ```
 
-- [ ] **Step 2: Run full test suite**
+- [x] **Step 2: Run full test suite**
 
 ```bash
 cd backend && pytest tests/ -v
@@ -731,7 +731,7 @@ cd backend && pytest tests/ -v
 
 Expected: all `PASSED`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add backend/app/main.py
@@ -742,7 +742,7 @@ git commit -m "feat: slowapi rate limiting (60 req/min per IP)"
 
 ## Task 7: Merge Sprint 2
 
-- [ ] **Step 1: Run full backend test suite**
+- [x] **Step 1: Run full backend test suite**
 
 ```bash
 cd backend && pytest tests/ -v --tb=short
@@ -750,7 +750,7 @@ cd backend && pytest tests/ -v --tb=short
 
 Expected: all `PASSED`
 
-- [ ] **Step 2: Smoke test locally**
+- [x] **Step 2: Smoke test locally**
 
 ```bash
 cd backend && uvicorn app.main:app --reload
@@ -760,7 +760,7 @@ curl -H "User-Agent: curl/7.0" http://localhost:8000/stats
 
 Expected: JSON with `total_co_bills`, `copycat_alerts`, `bills_analyzed`
 
-- [ ] **Step 3: Merge to main**
+- [x] **Step 3: Merge to main**
 
 ```bash
 git checkout main
