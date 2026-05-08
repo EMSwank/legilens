@@ -9,10 +9,14 @@ class ISTScoreOut(BaseModel):
     copycat_alert: bool
     analyzed_at: datetime
 
+    model_config = {"from_attributes": True}
+
 
 class FrictionTagOut(BaseModel):
-    type: str
+    tag_type: str
     confidence: Decimal | None
+
+    model_config = {"from_attributes": True}
 
 
 class BillListItem(BaseModel):
@@ -35,7 +39,7 @@ class BillDetail(BaseModel):
     state: str
     session: str
     status: str | None
-    sponsors: list | None
+    sponsors: dict | None
     ist_score: ISTScoreOut | None
     tags: list[FrictionTagOut]
 

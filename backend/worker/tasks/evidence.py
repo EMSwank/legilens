@@ -7,6 +7,11 @@ from app.services.redis_cache import RedisCache
 from app.services.snippet_extractor import extract_snippets
 from app.config import settings
 
+
+def _add_kind_to_snippets(snippets: list[dict]) -> list[dict]:
+    """Add 'kind': 'snippet' to each snippet dict for discriminated union."""
+    return [{"kind": "snippet", **snippet} for snippet in snippets]
+
 async def extract_all_pending_evidence():
     client = LegiScanClient(api_key=settings.legiscan_api_key)
     cache = RedisCache(url=settings.redis_url)
@@ -43,6 +48,6 @@ async def _extract_evidence_for_match(session, match, cache, client):
         return
 
     snippets = extract_snippets(co_text, src_text)
-    match.matched_snippets = snippets
+    match.matched_snippets = _add_kind_to_snippets(snippets)
     match.snippet_status = "verified"
     await session.commit()
