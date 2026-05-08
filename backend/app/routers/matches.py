@@ -23,7 +23,7 @@ async def get_matches(bill_id: UUID, db: AsyncSession = Depends(get_db)):
     for m in matches:
         if m.snippet_status == "source_verified_text_missing":
             snippets = [GhostMessage(message="Source text unavailable for extraction")]
-        elif m.matched_snippets:
+        elif m.matched_snippets is not None:
             snippets = _snippet_list_adapter.validate_python(m.matched_snippets)
         else:
             snippets = None

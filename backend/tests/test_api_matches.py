@@ -106,3 +106,41 @@ async def test_ghost_match_returns_message(client):
     assert len(data[0]["matched_snippets"]) == 1
     assert data[0]["matched_snippets"][0]["kind"] == "ghost"
     assert data[0]["matched_snippets"][0]["message"] == "Source text unavailable for extraction"
+
+
+async def test_pending_match_has_null_snippets(client):
+    c, app, get_db = client
+
+    bill_id = uuid4()
+    match_id = uuid4()
+
+    mock_match = MagicMock()
+    mock_match.id = match_id
+    mock_match.matched_bill_title = "HB 500 - Pending Bill"
+    mock_match.matched_state = "WA"
+    mock_match.similarity_score = Decimal("0.91")
+    mock_match.snippet_status = "pending"
+    mock_match.matched_snippets = None
+
+    mock_session = AsyncMock()
+    scalars_result = MagicMock()
+    scalars_result.all.return_value = [mock_match]
+    execute_result = MagicMock()
+    execute_result.scalars.return_value = scalars_result
+    mock_session.execute.return_value = execute_result
+
+    async def override():
+        yield mock_session
+
+    app.dependency_overrides[get_db] = override
+    try:
+        resp = await c.get(f"/bills/{bill_id}/matches", headers={"User-Agent": "TestClient/1.0"})
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert isinstance(data, list)
+    assert len(data) == 1
+    assert data[0]["snippet_status"] == "pending"
+    assert data[0]["matched_snippets"] is None
