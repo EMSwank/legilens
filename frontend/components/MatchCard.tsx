@@ -1,5 +1,6 @@
 import type { Match } from "@/lib/types";
 import GhostAlert from "./GhostAlert";
+import PendingBanner from "./PendingBanner";
 import SnippetDiff from "./SnippetDiff";
 import CopyButton from "./CopyButton";
 
@@ -30,6 +31,8 @@ export default function MatchCard({ match, billNumber, billState, istScore }: Pr
       {match.snippet_status === "source_verified_text_missing" && (
         <GhostAlert matchedBill={match.matched_bill_title} />
       )}
+
+      {match.snippet_status === "pending" && <PendingBanner />}
 
       {match.matched_snippets?.map((s, i) =>
         s.kind === "snippet" ? (
