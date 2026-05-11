@@ -27,8 +27,10 @@ test("BillHeader renders bill number", () => {
 });
 
 test("BillHeader renders title", () => {
-  const { getByText } = render(<BillHeader bill={bill} />);
-  expect(getByText("Concerning Digital Privacy Requirements for State Agencies")).toBeInTheDocument();
+  const { getByRole } = render(<BillHeader bill={bill} />);
+  expect(getByRole("heading", { level: 1 })).toHaveTextContent(
+    "Concerning Digital Privacy Requirements for State Agencies"
+  );
 });
 
 test("BillHeader renders state and session", () => {
