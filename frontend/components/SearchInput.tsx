@@ -1,22 +1,33 @@
 "use client";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 export default function SearchInput() {
   const router = useRouter();
+  const pathname = usePathname();
   const [value, setValue] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFirstRender = useRef(true);
+  const pushRef = useRef(router.push.bind(router));
 
   useEffect(() => {
+    pushRef.current = router.push.bind(router);
+  }, [router]);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       const q = value.trim();
-      router.push(q ? `?q=${encodeURIComponent(q)}` : "?");
+      pushRef.current(q ? `?q=${encodeURIComponent(q)}` : pathname);
     }, 300);
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [value, router]);
+  }, [value, pathname]);
 
   return (
     <input
