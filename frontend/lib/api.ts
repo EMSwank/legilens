@@ -15,7 +15,8 @@ export const api = {
     if (params?.session) q.set("session", params.session);
     if (params?.status) q.set("status", params.status);
     if (params?.page) q.set("page", String(params.page));
-    return get<BillListItem[]>(`/bills?${q}`);
+    const qs = q.toString();
+    return get<BillListItem[]>(qs ? `/bills?${qs}` : "/bills");
   },
   searchBills: (q: string): Promise<BillListItem[]> =>
     get<BillListItem[]>(`/bills/search?q=${encodeURIComponent(q)}`),

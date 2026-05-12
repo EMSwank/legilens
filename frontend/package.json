@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "jest",
+    "test:watch": "jest --watch",
     "lint": "eslint",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui"
