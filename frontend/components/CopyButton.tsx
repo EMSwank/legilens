@@ -15,6 +15,7 @@ export default function CopyButton({
   billNumber, state, coMatch, matchedBill, matchedState, sourceMatch, score,
 }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -36,7 +37,8 @@ export default function CopyButton({
       setCopied(true);
       timeoutRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
-      // clipboard write failed (insecure context or permission denied)
+      setCopyError(true);
+      timeoutRef.current = setTimeout(() => setCopyError(false), 2000);
     }
   }
 
@@ -49,7 +51,7 @@ export default function CopyButton({
         {copied ? "Copied!" : "Copy to Clipboard"}
       </button>
       <span role="status" aria-live="polite" className="sr-only">
-        {copied ? "Copied to clipboard" : ""}
+        {copied ? "Copied to clipboard" : copyError ? "Copy not available" : ""}
       </span>
     </>
   );

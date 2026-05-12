@@ -32,7 +32,6 @@ export default function SearchInput() {
 
   return (
     <input
-      role="searchbox"
       aria-label="Search bills"
       type="search"
       value={value}

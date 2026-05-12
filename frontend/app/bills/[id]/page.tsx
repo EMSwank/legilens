@@ -16,7 +16,7 @@ export default function BillDetailPage() {
     queryFn: () => api.bill(id),
   });
 
-  const { data: matches, isPending: matchesPending } = useQuery({
+  const { data: matches, isPending: matchesPending, isError: matchesError } = useQuery({
     queryKey: ["matches", id],
     queryFn: () => api.matches(id),
     enabled: !billError,
@@ -63,6 +63,10 @@ export default function BillDetailPage() {
                 <div className="mb-3 h-32 animate-pulse rounded-lg bg-slate-700" aria-label="Loading match" />
                 <div className="h-32 animate-pulse rounded-lg bg-slate-700" aria-label="Loading match" />
               </>
+            ) : matchesError ? (
+              <div role="alert" className="rounded-md border border-red-800 bg-red-950 px-4 py-3 text-sm text-red-300">
+                Failed to load similarity matches.
+              </div>
             ) : matches && matches.length === 0 ? (
               <p className="text-slate-500">No similarity matches found.</p>
             ) : matches ? (

@@ -8,7 +8,7 @@ export default function PendingBanner() {
       <span className="motion-safe:animate-spin text-lg" aria-hidden="true">⟳</span>
       <span>
         <span className="font-semibold">Analyzing Cross-State Evidence…</span>{" "}
-        Snippets will appear automatically when extraction completes.
+        Reload the page to check for updated snippets.
       </span>
     </div>
   );

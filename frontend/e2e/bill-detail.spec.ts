@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
+import type { BillDetail, Match } from "@/lib/types";
 
-const billFixture = {
+const billFixture: BillDetail = {
   id: "bill-1",
   bill_number: "HB24-1234",
   title: "Concerning Digital Privacy Requirements",
@@ -20,7 +21,7 @@ const billFixture = {
   ],
 };
 
-const matchesFixture = [
+const matchesFixture: Match[] = [
   {
     id: "match-1",
     matched_bill_title: "Texas Digital Data Rights Act",
@@ -29,7 +30,7 @@ const matchesFixture = [
     snippet_status: "verified",
     matched_snippets: [
       {
-        kind: "snippet",
+        kind: "snippet" as const,
         co_context_before: "",
         co_match: "data collection by state agencies",
         co_context_after: "",
@@ -41,7 +42,7 @@ const matchesFixture = [
   },
 ];
 
-const ghostMatchesFixture = [
+const ghostMatchesFixture: Match[] = [
   {
     id: "match-2",
     matched_bill_title: "FL Ghost Bill",
@@ -54,8 +55,8 @@ const ghostMatchesFixture = [
 
 async function interceptBill(
   page: Page,
-  billOverride = billFixture,
-  matchesOverride = matchesFixture
+  billOverride: BillDetail = billFixture,
+  matchesOverride: Match[] = matchesFixture
 ) {
   await page.route("**/bills/bill-1/matches", (route) =>
     route.fulfill({ json: matchesOverride })
