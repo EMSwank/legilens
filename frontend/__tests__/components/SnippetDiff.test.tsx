@@ -16,3 +16,21 @@ test("SnippetDiff has no accessibility violations", async () => {
   const { container } = render(<SnippetDiff snippet={snippet} />);
   expect(await axe(container)).toHaveNoViolations();
 });
+
+test("SnippetDiff renders Colorado and Source column headers", () => {
+  const { getByText } = render(<SnippetDiff snippet={snippet} />);
+  expect(getByText("Colorado")).toBeInTheDocument();
+  expect(getByText("Source")).toBeInTheDocument();
+});
+
+test("SnippetDiff renders co_match and source_match text", () => {
+  const { getAllByText } = render(<SnippetDiff snippet={snippet} />);
+  const matches = getAllByText("The commission shall establish fees not to exceed one hundred dollars.");
+  expect(matches).toHaveLength(2);
+});
+
+test("SnippetDiff renders context strings", () => {
+  const { getByText } = render(<SnippetDiff snippet={snippet} />);
+  expect(getByText("Intro sentence.")).toBeInTheDocument();
+  expect(getByText("Preamble.")).toBeInTheDocument();
+});

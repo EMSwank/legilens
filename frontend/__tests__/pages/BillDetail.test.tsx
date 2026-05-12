@@ -65,7 +65,7 @@ const ghostMatchFixture: Match = {
   matched_state: "FL",
   similarity_score: 78.1,
   snippet_status: "source_verified_text_missing",
-  matched_snippets: null,
+  matched_snippets: [{ kind: "ghost" as const, message: "Source text unavailable for extraction" as const }],
 };
 
 const pendingMatchFixture: Match = {

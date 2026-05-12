@@ -16,11 +16,8 @@ async def client():
 async def test_get_bills_returns_200(client):
     c, app, get_db = client
     mock_session = AsyncMock()
-    # scalars() and all() are synchronous on the Result object; only execute() is async
-    scalars_result = MagicMock()
-    scalars_result.all.return_value = []
     execute_result = MagicMock()
-    execute_result.scalars.return_value = scalars_result
+    execute_result.all.return_value = []
     mock_session.execute.return_value = execute_result
 
     async def override():
@@ -63,10 +60,8 @@ async def test_get_bill_detail_404_on_missing(client):
 async def test_get_bills_search_returns_200(client):
     c, app, get_db = client
     mock_session = AsyncMock()
-    scalars_result = MagicMock()
-    scalars_result.all.return_value = []
     execute_result = MagicMock()
-    execute_result.scalars.return_value = scalars_result
+    execute_result.all.return_value = []
     mock_session.execute.return_value = execute_result
 
     async def override():

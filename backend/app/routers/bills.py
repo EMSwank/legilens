@@ -19,14 +19,18 @@ async def list_bills(
     size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    q = select(Bill).where(Bill.is_corpus_only.is_(False))
+    q = (
+        select(Bill, ISTScore.copycat_alert)
+        .outerjoin(ISTScore, ISTScore.bill_id == Bill.id)
+        .where(Bill.is_corpus_only.is_(False))
+    )
     if session:
         q = q.where(Bill.session == session)
     if status:
         q = q.where(Bill.status == status)
     q = q.offset((page - 1) * size).limit(size)
     result = await db.execute(q)
-    bills = result.scalars().all()
+    rows = result.all()
     return [
         BillListItem(
             id=b.id,
@@ -35,9 +39,9 @@ async def list_bills(
             state=b.state,
             session=b.session,
             status=b.status,
-            copycat_alert=None,
+            copycat_alert=copycat_alert,
         )
-        for b in bills
+        for b, copycat_alert in rows
     ]
 
 
@@ -47,13 +51,14 @@ async def search_bills(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Bill)
+        select(Bill, ISTScore.copycat_alert)
+        .outerjoin(ISTScore, ISTScore.bill_id == Bill.id)
         .where(Bill.is_corpus_only.is_(False))
         .where(func.similarity(Bill.full_text, q) > 0.1)
         .order_by(func.similarity(Bill.full_text, q).desc())
         .limit(20)
     )
-    bills = result.scalars().all()
+    rows = result.all()
     return [
         BillListItem(
             id=b.id,
@@ -62,9 +67,9 @@ async def search_bills(
             state=b.state,
             session=b.session,
             status=b.status,
-            copycat_alert=None,
+            copycat_alert=copycat_alert,
         )
-        for b in bills
+        for b, copycat_alert in rows
     ]
 
 

@@ -54,7 +54,7 @@ To quantify the "Friction Gap" in the Colorado General Assembly by analyzing the
 | :---- | :---- | :---- |
 | Sprint 1 | LegiScan ingestion, MinHash LSH pipeline, nightly worker, Postgres schema | ✅ Merged to main |
 | Sprint 2 | FastAPI read-only API, Pydantic v2 schemas, rate limiting, 56 tests | ✅ Merged to main |
-| Sprint 3 | Next.js 14 frontend, WCAG 2.1 AA, TanStack Query, Playwright E2E | 🔄 In progress |
+| Sprint 3 | Next.js 16 frontend, WCAG 2.1 AA, TanStack Query, Playwright E2E | 🔄 In progress |
 
 ## **6\. Backend Architecture (Sprint 1 + 2)**
 

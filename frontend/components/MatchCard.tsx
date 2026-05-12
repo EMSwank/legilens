@@ -34,9 +34,9 @@ export default function MatchCard({ match, billNumber, billState, istScore }: Pr
 
       {match.snippet_status === "pending" && <PendingBanner />}
 
-      {match.matched_snippets?.map((s, i) =>
+      {match.matched_snippets?.map((s) =>
         s.kind === "snippet" ? (
-          <div key={i} className="space-y-2">
+          <div key={s.co_match.slice(0, 40)} className="space-y-2">
             <SnippetDiff snippet={s} />
             <CopyButton
               billNumber={billNumber}
