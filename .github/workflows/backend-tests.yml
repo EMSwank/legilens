@@ -21,6 +21,10 @@ jobs:
         pip install fastapi "sqlalchemy[asyncio]" asyncpg alembic pydantic pydantic-settings datasketch redis httpx apscheduler slowapi
         pip install pytest pytest-asyncio pytest-mock
     - name: Run tests
+      env:
+        DATABASE_URL: postgresql+asyncpg://test:test@localhost/test
+        REDIS_URL: redis://localhost:6379
+        LEGISCAN_API_KEY: test_key
       run: |
         cd backend
         python -m pytest tests/ -x -q
