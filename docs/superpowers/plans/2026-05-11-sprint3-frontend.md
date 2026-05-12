@@ -1,6 +1,6 @@
 # Sprint 3 Frontend Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Complete Sprint 3 frontend — bill detail page (`/bills/[id]`), inline dashboard search, and full Playwright E2E coverage with TDD throughout.
 
@@ -35,7 +35,7 @@
 - Create: `frontend/playwright.config.ts`
 - Modify: `frontend/package.json`
 
-- [ ] **Step 1: Install `@playwright/test` and Chromium browser**
+- [x] **Step 1: Install `@playwright/test` and Chromium browser**
 
 ```bash
 cd frontend && npm install --save-dev @playwright/test && npx playwright install chromium
@@ -43,7 +43,7 @@ cd frontend && npm install --save-dev @playwright/test && npx playwright install
 
 Expected: `@playwright/test` in `package.json` devDependencies. Chromium downloads to Playwright cache (`~/.cache/ms-playwright`).
 
-- [ ] **Step 2: Create `frontend/playwright.config.ts`**
+- [x] **Step 2: Create `frontend/playwright.config.ts`**
 
 ```typescript
 import { defineConfig, devices } from "@playwright/test";
@@ -68,7 +68,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 3: Add `e2e` script to `frontend/package.json`**
+- [x] **Step 3: Add `e2e` script to `frontend/package.json`**
 
 In the `"scripts"` object, add:
 
@@ -77,7 +77,7 @@ In the `"scripts"` object, add:
 "e2e:ui": "playwright test --ui"
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/playwright.config.ts frontend/package.json frontend/package-lock.json
@@ -92,7 +92,7 @@ git commit -m "feat(frontend): install Playwright + chromium config"
 - Create: `frontend/__tests__/components/BillHeader.test.tsx`
 - Create: `frontend/components/BillHeader.tsx`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `frontend/__tests__/components/BillHeader.test.tsx`:
 
@@ -147,7 +147,7 @@ test("BillHeader omits status pill when status is null", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 cd frontend && npx jest __tests__/components/BillHeader.test.tsx --no-coverage
@@ -155,7 +155,7 @@ cd frontend && npx jest __tests__/components/BillHeader.test.tsx --no-coverage
 
 Expected: FAIL — `Cannot find module '@/components/BillHeader'`
 
-- [ ] **Step 3: Implement `BillHeader`**
+- [x] **Step 3: Implement `BillHeader`**
 
 Create `frontend/components/BillHeader.tsx`:
 
@@ -185,7 +185,7 @@ export default function BillHeader({ bill }: { bill: BillDetail }) {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 ```bash
 cd frontend && npx jest __tests__/components/BillHeader.test.tsx --no-coverage
@@ -193,7 +193,7 @@ cd frontend && npx jest __tests__/components/BillHeader.test.tsx --no-coverage
 
 Expected: PASS — 6 tests
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/components/BillHeader.tsx frontend/__tests__/components/BillHeader.test.tsx
@@ -208,7 +208,7 @@ git commit -m "feat(frontend): BillHeader component with axe TDD"
 - Create: `frontend/__tests__/components/BillSidebar.test.tsx`
 - Create: `frontend/components/BillSidebar.tsx`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `frontend/__tests__/components/BillSidebar.test.tsx`:
 
@@ -267,7 +267,7 @@ test("BillSidebar renders no tags when tags array is empty", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 cd frontend && npx jest __tests__/components/BillSidebar.test.tsx --no-coverage
@@ -275,7 +275,7 @@ cd frontend && npx jest __tests__/components/BillSidebar.test.tsx --no-coverage
 
 Expected: FAIL — `Cannot find module '@/components/BillSidebar'`
 
-- [ ] **Step 3: Implement `BillSidebar`**
+- [x] **Step 3: Implement `BillSidebar`**
 
 Create `frontend/components/BillSidebar.tsx`:
 
@@ -315,7 +315,7 @@ export default function BillSidebar({ istScore, tags }: Props) {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 ```bash
 cd frontend && npx jest __tests__/components/BillSidebar.test.tsx --no-coverage
@@ -323,7 +323,7 @@ cd frontend && npx jest __tests__/components/BillSidebar.test.tsx --no-coverage
 
 Expected: PASS — 6 tests
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/components/BillSidebar.tsx frontend/__tests__/components/BillSidebar.test.tsx
@@ -338,7 +338,7 @@ git commit -m "feat(frontend): BillSidebar component with axe TDD"
 - Create: `frontend/__tests__/components/SearchInput.test.tsx`
 - Create: `frontend/components/SearchInput.tsx`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `frontend/__tests__/components/SearchInput.test.tsx`:
 
@@ -411,7 +411,7 @@ test("SearchInput resets debounce timer on each keystroke", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 cd frontend && npx jest __tests__/components/SearchInput.test.tsx --no-coverage
@@ -419,7 +419,7 @@ cd frontend && npx jest __tests__/components/SearchInput.test.tsx --no-coverage
 
 Expected: FAIL — `Cannot find module '@/components/SearchInput'`
 
-- [ ] **Step 3: Implement `SearchInput`**
+- [x] **Step 3: Implement `SearchInput`**
 
 Create `frontend/components/SearchInput.tsx`:
 
@@ -458,7 +458,7 @@ export default function SearchInput() {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 ```bash
 cd frontend && npx jest __tests__/components/SearchInput.test.tsx --no-coverage
@@ -466,7 +466,7 @@ cd frontend && npx jest __tests__/components/SearchInput.test.tsx --no-coverage
 
 Expected: PASS — 6 tests
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/components/SearchInput.tsx frontend/__tests__/components/SearchInput.test.tsx
@@ -481,7 +481,7 @@ git commit -m "feat(frontend): SearchInput with 300ms debounce TDD"
 - Create: `frontend/__tests__/pages/BillDetail.test.tsx`
 - Create: `frontend/app/bills/[id]/page.tsx`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `frontend/__tests__/pages/BillDetail.test.tsx`:
 
@@ -636,7 +636,7 @@ test("BillDetailPage renders empty state when no matches", async () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 cd frontend && npx jest __tests__/pages/BillDetail.test.tsx --no-coverage
@@ -644,7 +644,7 @@ cd frontend && npx jest __tests__/pages/BillDetail.test.tsx --no-coverage
 
 Expected: FAIL — `Cannot find module '@/app/bills/[id]/page'`
 
-- [ ] **Step 3: Create directory and implement page**
+- [x] **Step 3: Create directory and implement page**
 
 ```bash
 mkdir -p "frontend/app/bills/[id]"
@@ -739,7 +739,7 @@ export default function BillDetailPage() {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 cd frontend && npx jest __tests__/pages/BillDetail.test.tsx --no-coverage
@@ -747,7 +747,7 @@ cd frontend && npx jest __tests__/pages/BillDetail.test.tsx --no-coverage
 
 Expected: PASS — 9 tests
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add "frontend/app/bills/[id]/page.tsx" frontend/__tests__/pages/BillDetail.test.tsx
@@ -763,7 +763,7 @@ git commit -m "feat(frontend): bill detail page — sidebar layout, IST gauge, m
 
 Next.js 16 requires components calling `useSearchParams()` to be wrapped in `<Suspense>`. Extract `DashboardContent` as an inner component so it can safely call `useSearchParams()`, then wrap it in `Suspense` in the default export.
 
-- [ ] **Step 1: Replace `frontend/app/page.tsx`**
+- [x] **Step 1: Replace `frontend/app/page.tsx`**
 
 ```typescript
 "use client";
@@ -878,7 +878,7 @@ export default function Dashboard() {
 }
 ```
 
-- [ ] **Step 2: Run full jest suite to verify no regressions**
+- [x] **Step 2: Run full jest suite to verify no regressions**
 
 ```bash
 cd frontend && npx jest --no-coverage
@@ -886,7 +886,7 @@ cd frontend && npx jest --no-coverage
 
 Expected: All tests PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/app/page.tsx
@@ -900,7 +900,7 @@ git commit -m "feat(frontend): dashboard inline search with useSearchParams + Su
 **Files:**
 - Create: `frontend/e2e/dashboard.spec.ts`
 
-- [ ] **Step 1: Create `e2e/` directory and write tests**
+- [x] **Step 1: Create `e2e/` directory and write tests**
 
 ```bash
 mkdir -p frontend/e2e
@@ -1027,7 +1027,7 @@ test("/bills API error shows error alert", async ({ page }) => {
 });
 ```
 
-- [ ] **Step 2: Run E2E tests**
+- [x] **Step 2: Run E2E tests**
 
 ```bash
 cd frontend && npm run e2e -- --project=chromium
@@ -1035,7 +1035,7 @@ cd frontend && npm run e2e -- --project=chromium
 
 Expected: 7 dashboard tests PASS. Playwright auto-starts `next dev` if not already running.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/e2e/dashboard.spec.ts
@@ -1049,7 +1049,7 @@ git commit -m "feat(frontend): Playwright E2E — dashboard stats, bills, search
 **Files:**
 - Create: `frontend/e2e/bill-detail.spec.ts`
 
-- [ ] **Step 1: Write the E2E tests**
+- [x] **Step 1: Write the E2E tests**
 
 Create `frontend/e2e/bill-detail.spec.ts`:
 
@@ -1185,7 +1185,7 @@ test("/bills/bad-id 404 renders error state with back link", async ({ page }) =>
 });
 ```
 
-- [ ] **Step 2: Run all E2E tests**
+- [x] **Step 2: Run all E2E tests**
 
 ```bash
 cd frontend && npm run e2e -- --project=chromium
@@ -1193,7 +1193,7 @@ cd frontend && npm run e2e -- --project=chromium
 
 Expected: 16 total E2E tests PASS (7 dashboard + 9 bill detail).
 
-- [ ] **Step 3: Run full jest unit test suite**
+- [x] **Step 3: Run full jest unit test suite**
 
 ```bash
 cd frontend && npx jest --no-coverage
@@ -1201,7 +1201,7 @@ cd frontend && npx jest --no-coverage
 
 Expected: All unit tests PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/e2e/bill-detail.spec.ts
