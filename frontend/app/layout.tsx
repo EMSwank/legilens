@@ -23,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </a>
         <Providers>
           <ProgressBar />
-          <main id="main">{children}</main>
+          {children}
         </Providers>
       </body>
     </html>

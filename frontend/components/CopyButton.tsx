@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface CopyButtonProps {
   billNumber: string;
@@ -15,6 +15,13 @@ export default function CopyButton({
   billNumber, state, coMatch, matchedBill, matchedState, sourceMatch, score,
 }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   const text = [
     `[${state} ${billNumber}] "${coMatch}"`,
@@ -23,9 +30,14 @@ export default function CopyButton({
   ].join("\n");
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      timeoutRef.current = setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard write failed (insecure context or permission denied)
+    }
   }
 
   return (
