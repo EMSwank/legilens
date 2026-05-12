@@ -1,3 +1,4 @@
+# pylint: disable=line-too-long
 import pytest
 from app.services.snippet_extractor import extract_snippets, MIN_MATCH_LENGTH
 
