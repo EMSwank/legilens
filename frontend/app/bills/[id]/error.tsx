@@ -5,10 +5,10 @@ import { useEffect } from "react";
 
 export default function BillDetailError({
   error,
-  reset,
+  unstable_retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  unstable_retry: () => void;
 }) {
   useEffect(() => {
     console.error(error);
@@ -19,7 +19,7 @@ export default function BillDetailError({
       <h1 className="text-xl font-semibold">Failed to load bill</h1>
       <div className="flex gap-3">
         <button
-          onClick={reset}
+          onClick={unstable_retry}
           className="rounded bg-slate-700 px-4 py-2 text-sm hover:bg-slate-600 focus-visible:ring-2 focus-visible:ring-slate-400"
         >
           Try again

@@ -29,8 +29,10 @@ test("SnippetDiff renders co_match and source_match text", () => {
   expect(matches).toHaveLength(2);
 });
 
-test("SnippetDiff renders context strings", () => {
+test("SnippetDiff renders all four context strings", () => {
   const { getByText } = render(<SnippetDiff snippet={snippet} />);
   expect(getByText("Intro sentence.")).toBeInTheDocument();
+  expect(getByText("Outro sentence.")).toBeInTheDocument();
   expect(getByText("Preamble.")).toBeInTheDocument();
+  expect(getByText("Closing.")).toBeInTheDocument();
 });
