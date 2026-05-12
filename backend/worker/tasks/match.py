@@ -41,7 +41,7 @@ async def _find_matches_for_bill(session, co_bill_id: UUID, co_m, corpus_entries
         return
 
     max_similarity = Decimal("0.00")
-    for corpus_bill_id, corpus_state, corpus_bill_number, corpus_m in corpus_entries:
+    for corpus_bill_id, corpus_state, _, corpus_m in corpus_entries:
         sim = Decimal(str(round(jaccard_estimate(co_m, corpus_m) * 100, 2)))
         if sim < Decimal("70.00"):
             continue

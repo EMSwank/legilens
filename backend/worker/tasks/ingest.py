@@ -1,4 +1,5 @@
 import base64
+import binascii
 import io
 import json
 import zipfile
@@ -59,7 +60,7 @@ def _extract_text(bill: dict) -> str | None:
         return None
     try:
         return base64.b64decode(doc).decode("utf8")
-    except Exception:
+    except (binascii.Error, UnicodeDecodeError):
         return None
 
 
