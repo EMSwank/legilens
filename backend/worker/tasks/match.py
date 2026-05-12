@@ -53,8 +53,7 @@ async def _find_matches_for_bill(session, co_bill_id: UUID, co_m, corpus_entries
             snippet_status="pending",
         )
         session.add(match)
-        if sim > max_similarity:
-            max_similarity = sim
+        max_similarity = max(max_similarity, sim)
 
     authenticity = Decimal("100.00") - max_similarity
     score = ISTScore(
