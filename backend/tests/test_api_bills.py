@@ -314,3 +314,36 @@ async def test_get_bills_without_tag_type_does_not_join_friction_tags():
     assert resp.status_code == 200
     stmt = captured[0].lower()
     assert "friction_tag" not in stmt
+
+
+async def test_get_bills_tag_type_uses_subquery_not_join():
+    """tag_type filter must use IN subquery, not a join, to prevent duplicate rows
+    when a bill has multiple friction_tags with the same tag_type."""
+    from app.main import app
+    from app.dependencies import get_db
+
+    captured = []
+
+    async def execute_spy(stmt):
+        captured.append(str(stmt))
+        result = MagicMock()
+        result.all.return_value = []
+        return result
+
+    mock_session = AsyncMock()
+    mock_session.execute.side_effect = execute_spy
+
+    async def override():
+        yield mock_session
+
+    app.dependency_overrides[get_db] = override
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            await c.get("/bills?tag_type=source_cloned", headers={"User-Agent": "TestClient/1.0"})
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    stmt = captured[0].lower()
+    assert "bills.id in" in stmt or "bills.id in(" in stmt
+    assert "join friction_tags" not in stmt

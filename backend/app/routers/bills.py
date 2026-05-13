@@ -30,9 +30,9 @@ async def list_bills(
     if status:
         q = q.where(Bill.status == status)
     if tag_type:
-        q = q.join(FrictionTag, FrictionTag.bill_id == Bill.id).where(
-            FrictionTag.tag_type == tag_type
-        )
+        q = q.where(Bill.id.in_(
+            select(FrictionTag.bill_id).where(FrictionTag.tag_type == tag_type)
+        ))
     q = q.offset((page - 1) * size).limit(size)
     result = await db.execute(q)
     rows = result.all()
