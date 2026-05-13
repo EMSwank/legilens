@@ -73,6 +73,17 @@ async def search_bills(
     ]
 
 
+@router.get("/sessions", response_model=list[str])
+async def list_sessions(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Bill.session)
+        .where(Bill.is_corpus_only.is_(False))
+        .distinct()
+        .order_by(Bill.session.desc())
+    )
+    return [row[0] for row in result.all()]
+
+
 @router.get("/{bill_id}", response_model=BillDetail)
 async def get_bill(bill_id: UUID, db: AsyncSession = Depends(get_db)):
     bill = await db.get(Bill, bill_id)
