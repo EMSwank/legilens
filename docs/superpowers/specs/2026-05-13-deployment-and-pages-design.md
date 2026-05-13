@@ -304,11 +304,109 @@ Document these as required checks after each Railway/Vercel deploy. Not automate
 
 ---
 
-## 5. Sequence
+## 5. Accessibility (WCAG 2.1 AA)
+
+**Target conformance:** WCAG 2.1 Level AA, consistent with Sprint 3. ADA Title III applies to public-facing tools; documented WCAG conformance + a posted accessibility statement is the strongest defense against drive-by demand letters citing automated scan results.
+
+**Reality check:** automated tools (jest-axe, axe DevTools) catch only ~30–40% of WCAG issues. The rest needs manual keyboard and screen reader testing. The plan below specifies both.
+
+### 5a. Per-component / per-page requirements
+
+**`/about` page:**
+- Single `<h1>` ("About LegiLens" or similar), no skipped heading levels (`<h1>` → `<h2>` → `<h3>`)
+- Page `<title>` element: `About — LegiLens`
+- `<main>` landmark wraps content (Next.js layout already provides skip link target)
+- Shingling SVG: includes `<title>` child element AND `role="img" aria-labelledby="..."` pointing to a `<title>` or visible caption. Decorative pieces inside the SVG use `aria-hidden="true"`. A textual description below the SVG explains the same concept for screen readers and zoom users.
+- Jaccard formula in `<code>` with `aria-label="Jaccard similarity formula: J of A and B equals the size of A intersect B over the size of A union B"` — screen readers won't pronounce `∩` and `∪` correctly
+- All in-page links have descriptive text (no "click here", no "learn more" alone)
+
+**`/tags` page:**
+- Single `<h1>` ("Friction Tags" or similar), heading hierarchy preserved
+- Page `<title>`: `Tags — LegiLens`
+- Tag cards are `<a>` elements (semantic — they navigate), not `<div onClick>`
+- Card accessible name includes both tag name and count: e.g. `aria-label="Source-Cloned, 12 bills"` (or rely on the visible link text covering this)
+- Count text is part of the link, not separate (don't make screen readers read "Source-Cloned" → "12 bills" as two unrelated items)
+- `TagBadge` color is NOT the only indicator of tag type — the text label is always present (WCAG 1.4.1 Use of Color)
+- Loading state: `role="status" aria-live="polite"` wrapper announces "Loading tags…"
+- Error state: `role="alert"` wrapper announces error message
+- Empty state: clear "No tags yet" message in the main region
+
+**Filter chips:**
+- Each chip is a `<button>` element (not `<div>`), with `type="button"`
+- Accessible name describes the action AND the filter: `aria-label="Remove tag filter: Source-Cloned"`
+- The visible × character is `aria-hidden="true"` (decorative); the accessible name carries the meaning
+- Touch target ≥ 44×44 px (WCAG 2.5.5 AAA, but worth meeting for mobile — invisible padding around the visible × is fine)
+- Visible focus indicator (Tailwind `focus-visible:ring-2` or equivalent)
+- After dismissal, focus moves to the next chip if one exists; otherwise to the dashboard heading (avoid focus loss)
+- Chip text contrast ≥ 4.5:1 against background; check both default and focus states
+
+**Session dropdown:**
+- Native `<select>` element (NOT a custom dropdown component — native gets keyboard nav, screen reader announcement, and mobile pickers for free)
+- Visible `<label>` associated via `htmlFor` / `id` (a hidden `<label>` or `aria-label` is permissible but visible is better for cognitive accessibility)
+- Default option "All sessions" makes the unfiltered state explicit
+
+### 5b. Cross-cutting
+
+**Color contrast (WCAG 1.4.3 + 1.4.11):**
+- All text: ≥ 4.5:1 against background (≥ 3:1 for ≥ 18pt or ≥ 14pt bold)
+- UI components (button borders, focus rings, icon-only controls): ≥ 3:1
+- Verify the red-tinted `TagBadge` variants ("Regressive Burden", "Source-Cloned"). `font-semibold` helps but does not guarantee contrast — measure with Chrome DevTools or a contrast checker. If a variant fails, adjust the color, not just the weight.
+
+**Keyboard (WCAG 2.1.1, 2.4.7):**
+- Every interactive element reachable via Tab in a logical order
+- Visible focus indicator on every interactive element (not just `:hover`)
+- No keyboard trap (Esc / Tab always escapes)
+- Enter and Space activate buttons; Enter activates links
+
+**Reflow (WCAG 1.4.10) and zoom (WCAG 1.4.4):**
+- 320px viewport: no horizontal scroll for content (except data tables, images)
+- 200% browser zoom: no content lost, no overlap
+
+**Reduced motion (WCAG 2.3.3 AAA, common practice for AA):**
+- Respect `prefers-reduced-motion` for any animations (loading skeletons, chip dismissal transitions)
+
+**Page metadata:**
+- `<html lang="en">` (already set in Next.js root layout)
+- Each route exports unique `metadata.title` and `metadata.description`
+
+**Status messages (WCAG 4.1.3):**
+- Filter chip dismissal triggers a live region announcement (e.g., "Tag filter cleared. Showing 47 bills.")
+- Search debounce result count uses `aria-live="polite"`
+
+### 5c. Test methodology
+
+**Automated (in CI, blocking):**
+- jest-axe scans every component test (already established in Sprint 3) — extend to all new pages and components
+- axe-core via Playwright on every E2E test (`@axe-core/playwright`) — new addition this sprint; add a helper that runs `await new AxeBuilder({ page }).analyze()` and asserts zero violations after each navigation
+
+**Manual (pre-PR-merge checklist per page):**
+- **Keyboard-only walkthrough:** unplug mouse, Tab through page, activate every interactive element, dismiss every chip, navigate every link. No traps, every action reachable.
+- **Screen reader walkthrough:** VoiceOver on macOS (Cmd+F5). Read entire page top to bottom. Confirm: headings announced in order, link text makes sense out of context, form controls have labels, status changes are announced.
+- **Contrast check:** Chrome DevTools "Inspect Element" → contrast ratio shown in color picker. Sample every text-on-background pair on the page.
+- **Zoom test:** Cmd+Plus to 200%. No content lost, no overlap, no horizontal scroll for prose.
+- **Mobile viewport reflow:** Chrome DevTools device mode → iPhone SE (375px). All content reflows, touch targets meet 44px.
+
+A short manual a11y checklist file lives at `frontend/A11Y_CHECKLIST.md` — every new page PR must check off each item before merge.
+
+### 5d. Accessibility statement
+
+Add an `/accessibility` route (or section inside `/about`) with:
+- Stated conformance target: "LegiLens targets WCAG 2.1 Level AA"
+- Testing methodology summary (automated + manual)
+- Known limitations, if any (none expected at launch)
+- Contact path for accessibility issues (GitHub issue link + email)
+- Statement of ongoing commitment
+
+A posted statement with a working contact route deflects most drive-by ADA demand letters — they prefer targets with no documented effort.
+
+---
+
+## 6. Sequence
 
 1. Verify Railway Hobby plan / resource headroom for two services
 2. Deploy backend to Railway (web + worker, migrations folded into web start command)
 3. Deploy frontend to Vercel (interactive walkthrough — new account)
 4. Feature branch: backend additions (`GET /bills/sessions` + `tag_type` filter on `GET /bills`) → PR
-5. Feature branch: `/about` page with shingling SVG + Jaccard formula → PR
+5. Feature branch: `/about` page with shingling SVG + Jaccard formula + accessibility statement → PR
 6. Feature branch: `/tags` page + dashboard filter additions (session dropdown + filter chips) → PR
+7. Add `@axe-core/playwright` to E2E + create `frontend/A11Y_CHECKLIST.md` (folded into the first frontend PR of this sprint)
