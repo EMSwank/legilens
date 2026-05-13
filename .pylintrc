@@ -15,3 +15,5 @@ disable=
 
 [DESIGN]
 min-public-methods=0
+max-args=7
+max-positional-arguments=7
