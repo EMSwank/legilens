@@ -185,7 +185,7 @@ async def test_get_bills_search_requires_user_agent(client):
 
 
 async def test_get_bills_with_tag_type_filter():
-    """When tag_type is passed, the query must join friction_tags and filter by tag_type."""
+    """When tag_type is passed, the query uses an IN subquery on friction_tags to avoid duplicate rows."""
     from app.main import app
     from app.dependencies import get_db
 
