@@ -15,6 +15,7 @@ router = APIRouter(prefix="/bills", dependencies=[Depends(require_user_agent)])
 async def list_bills(
     session: str | None = None,
     status: str | None = None,
+    tag_type: str | None = None,
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -28,6 +29,10 @@ async def list_bills(
         q = q.where(Bill.session == session)
     if status:
         q = q.where(Bill.status == status)
+    if tag_type:
+        q = q.join(FrictionTag, FrictionTag.bill_id == Bill.id).where(
+            FrictionTag.tag_type == tag_type
+        )
     q = q.offset((page - 1) * size).limit(size)
     result = await db.execute(q)
     rows = result.all()
