@@ -15,7 +15,12 @@ beforeEach(() => {
   });
 });
 
-const lastUrl = () => fetchMock.mock.calls[0][0] as string;
+const lastUrl = () => fetchMock.mock.calls.at(-1)![0] as string;
+
+test("api.bills with no params hits /bills without query string", async () => {
+  await api.bills();
+  expect(lastUrl()).toMatch(/\/bills$/);
+});
 
 test("api.bills with session appends session query param", async () => {
   await api.bills({ session: "2025A" });

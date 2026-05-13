@@ -37,6 +37,6 @@ For each new or modified interactive component:
 ## Tooling
 
 - jest-axe runs in every component test — failures block CI
-- `@axe-core/playwright` runs after each E2E page navigation — failures block CI
+- `@axe-core/playwright` runs after each E2E page navigation via `expectNoAxeViolations()` — failures block CI (wired in Phase 4+)
 - Manual VoiceOver (Cmd+F5 on macOS): top-to-bottom read-through per route
 - Manual keyboard-only walkthrough per route
