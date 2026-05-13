@@ -2,6 +2,17 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status (as of 2026-05-13):**
+| Phase | Description | Status |
+|-------|-------------|--------|
+| 1 | Deploy config (Procfile, railway.toml, CORS) | ✅ Merged (#12) |
+| 2 | Backend additions (sessions endpoint, tag_type filter) | ✅ Merged (#12) |
+| 3 | Frontend foundation (types, api client, axe helper, A11Y checklist) | ✅ Merged (#13) |
+| 4 | `/about` + `/accessibility` pages | ✅ Merged (#13) |
+| 5 | `/tags` page | 🔲 Not started — branch: `feat/tags-page` |
+| 6 | Dashboard filter chips + session dropdown | 🔲 Not started — branch: `feat/dashboard-filter-chips` |
+| 7 | Railway + Vercel deploy (manual) | 🔲 Blocked on Phase 6 |
+
 **Goal:** Deploy LegiLens to Railway (backend, two services) + Vercel (frontend), add two backend endpoints (`GET /bills/sessions` and a `tag_type` filter on `GET /bills`), and build three missing frontend pages (`/about`, `/tags`, `/accessibility`) plus dashboard filter chips and session dropdown.
 
 **Architecture:** Backend stays on FastAPI/asyncpg/Neon Postgres; deployment splits into Railway "web" (FastAPI + alembic migrations) and "worker" (APScheduler-driven nightly pipeline). Frontend stays on Next.js 16 App Router with TanStack Query. Filter state lives entirely in URL query params; the dashboard exposes a session dropdown and a dismissible chip row driven by URL params. WCAG 2.1 AA is enforced via jest-axe + `@axe-core/playwright` in CI plus a manual checklist per PR.
@@ -70,7 +81,7 @@ Phases 7–8 (E2E and manual deploy steps) fold into the relevant code branches.
 **Files:**
 - Create: `Procfile`
 
-- [ ] **Step 1: Create the Procfile**
+- [x] **Step 1: Create the Procfile**
 
 ```
 web: cd backend && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
@@ -79,7 +90,7 @@ worker: cd backend && python -m worker.scheduler
 
 Note: Two process types, both `cd` into `backend/` first because the Railway build will install Python dependencies from `backend/requirements.txt`. Railway's "service" abstraction will pick which line to run for each service.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git checkout -b feat/backend-sessions-and-tag-filter
@@ -92,7 +103,7 @@ git commit -m "chore: add Procfile for Railway web + worker services"
 **Files:**
 - Create: `railway.toml`
 
-- [ ] **Step 1: Create railway.toml**
+- [x] **Step 1: Create railway.toml**
 
 ```toml
 # Railway build config — backend lives in /backend
@@ -107,7 +118,7 @@ restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add railway.toml
@@ -119,7 +130,7 @@ git commit -m "chore: add railway.toml build config"
 **Files:**
 - Modify: `backend/app/main.py:17-22`
 
-- [ ] **Step 1: Update main.py CORS middleware**
+- [x] **Step 1: Update main.py CORS middleware**
 
 Replace the existing `app.add_middleware(CORSMiddleware, ...)` block with:
 
@@ -135,7 +146,7 @@ app.add_middleware(
 
 The regex allows any Vercel preview deployment to call the API; acceptable for a public read-only API.
 
-- [ ] **Step 2: Run existing backend tests to confirm nothing broke**
+- [x] **Step 2: Run existing backend tests to confirm nothing broke**
 
 ```bash
 cd backend && pytest tests/test_api_bills.py -v
@@ -143,7 +154,7 @@ cd backend && pytest tests/test_api_bills.py -v
 
 Expected: all existing tests pass.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add backend/app/main.py
@@ -155,7 +166,7 @@ git commit -m "feat(api): allow Vercel preview URLs via CORS regex"
 **Files:**
 - Create: `backend/tests/test_cors.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```python
 import pytest
@@ -210,7 +221,7 @@ async def test_cors_rejects_unrelated_origin():
     assert resp.headers.get("access-control-allow-origin") is None
 ```
 
-- [ ] **Step 2: Run tests to verify they pass**
+- [x] **Step 2: Run tests to verify they pass**
 
 ```bash
 cd backend && pytest tests/test_cors.py -v
@@ -218,7 +229,7 @@ cd backend && pytest tests/test_cors.py -v
 
 Expected: all three pass (we already added the regex in Task 1.3).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add backend/tests/test_cors.py
@@ -234,7 +245,7 @@ git commit -m "test(api): cover CORS regex + allowlist behavior"
 **Files:**
 - Create: `backend/tests/test_api_sessions.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 import pytest
@@ -337,7 +348,7 @@ async def test_get_sessions_query_orders_descending_and_excludes_corpus_only():
     assert "order by" in stmt and "desc" in stmt
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 cd backend && pytest tests/test_api_sessions.py -v
@@ -350,7 +361,7 @@ Expected: 404 on all tests (route does not exist yet).
 **Files:**
 - Modify: `backend/app/routers/bills.py`
 
-- [ ] **Step 1: Add the endpoint BEFORE `get_bill(bill_id: UUID)`**
+- [x] **Step 1: Add the endpoint BEFORE `get_bill(bill_id: UUID)`**
 
 Insert this function in `backend/app/routers/bills.py`, placed AFTER `search_bills` and BEFORE `get_bill`. The ordering matters: FastAPI tries to parse `{bill_id}` as UUID, and "sessions" would raise 422 otherwise.
 
@@ -366,7 +377,7 @@ async def list_sessions(db: AsyncSession = Depends(get_db)):
     return [row[0] for row in result.all()]
 ```
 
-- [ ] **Step 2: Run tests to verify they pass**
+- [x] **Step 2: Run tests to verify they pass**
 
 ```bash
 cd backend && pytest tests/test_api_sessions.py -v
@@ -374,7 +385,7 @@ cd backend && pytest tests/test_api_sessions.py -v
 
 Expected: all 4 tests pass.
 
-- [ ] **Step 3: Verify UUID route still works (regression check)**
+- [x] **Step 3: Verify UUID route still works (regression check)**
 
 ```bash
 cd backend && pytest tests/test_api_bills.py::test_get_bill_detail_404_on_missing -v
@@ -382,7 +393,7 @@ cd backend && pytest tests/test_api_bills.py::test_get_bill_detail_404_on_missin
 
 Expected: passes (route registration didn't shadow `/{bill_id}`).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add backend/app/routers/bills.py backend/tests/test_api_sessions.py
@@ -394,7 +405,7 @@ git commit -m "feat(api): GET /bills/sessions returns distinct CO sessions"
 **Files:**
 - Modify: `backend/tests/test_api_bills.py`
 
-- [ ] **Step 1: Append failing tests to the existing test file**
+- [x] **Step 1: Append failing tests to the existing test file**
 
 Add at the end of `backend/tests/test_api_bills.py`:
 
@@ -535,7 +546,7 @@ async def test_get_bills_without_tag_type_does_not_join_friction_tags():
     assert "friction_tag" not in stmt
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 cd backend && pytest tests/test_api_bills.py -v -k "tag_type or without_tag_type"
@@ -548,7 +559,7 @@ Expected: tag_type tests fail (parameter not implemented); regression test passe
 **Files:**
 - Modify: `backend/app/routers/bills.py:14-46`
 
-- [ ] **Step 1: Update `list_bills` signature and query**
+- [x] **Step 1: Update `list_bills` signature and query**
 
 Replace the existing `list_bills` function:
 
@@ -592,7 +603,7 @@ async def list_bills(
     ]
 ```
 
-- [ ] **Step 2: Run all bills tests to verify nothing regressed**
+- [x] **Step 2: Run all bills tests to verify nothing regressed**
 
 ```bash
 cd backend && pytest tests/test_api_bills.py -v
@@ -600,7 +611,7 @@ cd backend && pytest tests/test_api_bills.py -v
 
 Expected: all pass, including the new tag_type tests and the regression "no friction_tags join when not filtered" test.
 
-- [ ] **Step 3: Run the full backend test suite**
+- [x] **Step 3: Run the full backend test suite**
 
 ```bash
 cd backend && pytest -v
@@ -608,7 +619,7 @@ cd backend && pytest -v
 
 Expected: full suite green.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add backend/app/routers/bills.py backend/tests/test_api_bills.py
@@ -617,13 +628,13 @@ git commit -m "feat(api): tag_type filter on GET /bills"
 
 ### Task 2.5: Open PR for backend additions
 
-- [ ] **Step 1: Push branch**
+- [x] **Step 1: Push branch**
 
 ```bash
 git push -u origin feat/backend-sessions-and-tag-filter
 ```
 
-- [ ] **Step 2: Open PR**
+- [x] **Step 2: Open PR**
 
 ```bash
 gh pr create --title "feat(api): Sprint 4 backend additions — sessions endpoint + tag_type filter + CORS regex" --body "$(cat <<'EOF'
@@ -634,17 +645,17 @@ gh pr create --title "feat(api): Sprint 4 backend additions — sessions endpoin
 - `Procfile` + `railway.toml` prepared for Railway deploy (web + worker services)
 
 ## Test plan
-- [ ] `pytest tests/test_api_sessions.py -v` — 4 tests
-- [ ] `pytest tests/test_api_bills.py -v` — original tests + 4 new (tag_type filter coverage)
-- [ ] `pytest tests/test_cors.py -v` — 3 tests
-- [ ] Full backend test suite: `pytest -v`
+- [x] `pytest tests/test_api_sessions.py -v` — 4 tests
+- [x] `pytest tests/test_api_bills.py -v` — original tests + 4 new (tag_type filter coverage)
+- [x] `pytest tests/test_cors.py -v` — 3 tests
+- [x] Full backend test suite: `pytest -v`
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
 )"
 ```
 
-- [ ] **Step 3: Wait for CI green, then merge**
+- [x] **Step 3: Wait for CI green, then merge**
 
 Confirm CI passes (backend pytest workflow). Merge via GitHub UI or:
 
@@ -663,14 +674,14 @@ git checkout main && git pull
 - Modify: `frontend/lib/types.ts`
 - Modify: `frontend/lib/api.ts`
 
-- [ ] **Step 1: Create a new feature branch (this work folds into first frontend PR)**
+- [x] **Step 1: Create a new feature branch (this work folds into first frontend PR)**
 
 ```bash
 git checkout main && git pull
 git checkout -b feat/about-and-accessibility-pages
 ```
 
-- [ ] **Step 2: Append `TagCount` to types.ts**
+- [x] **Step 2: Append `TagCount` to types.ts**
 
 Add at the end of `frontend/lib/types.ts`:
 
@@ -681,7 +692,7 @@ export interface TagCount {
 }
 ```
 
-- [ ] **Step 3: Update api.ts — add `tag_type` option, `tags()`, `sessions()`**
+- [x] **Step 3: Update api.ts — add `tag_type` option, `tags()`, `sessions()`**
 
 Replace the existing `bills` method and append two new methods:
 
@@ -722,7 +733,7 @@ export const api = {
 };
 ```
 
-- [ ] **Step 4: Write api.ts tests**
+- [x] **Step 4: Write api.ts tests**
 
 Create `frontend/__tests__/lib/api.test.ts`:
 
@@ -773,7 +784,7 @@ test("api.sessions hits /bills/sessions", async () => {
 });
 ```
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 ```bash
 cd frontend && npm test -- --testPathPattern=lib/api
@@ -781,7 +792,7 @@ cd frontend && npm test -- --testPathPattern=lib/api
 
 Expected: all 5 pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add frontend/lib/types.ts frontend/lib/api.ts frontend/__tests__/lib/api.test.ts
@@ -794,13 +805,13 @@ git commit -m "feat(frontend): add tags(), sessions(), tag_type filter to API cl
 - Modify: `frontend/package.json`
 - Create: `frontend/e2e/axe-helper.ts`
 
-- [ ] **Step 1: Install the package**
+- [x] **Step 1: Install the package**
 
 ```bash
 cd frontend && npm install --save-dev @axe-core/playwright
 ```
 
-- [ ] **Step 2: Create the axe helper**
+- [x] **Step 2: Create the axe helper**
 
 Create `frontend/e2e/axe-helper.ts`:
 
@@ -824,7 +835,7 @@ export async function expectNoAxeViolations(page: Page, context?: string) {
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/package.json frontend/package-lock.json frontend/e2e/axe-helper.ts
@@ -836,7 +847,7 @@ git commit -m "chore(frontend): add @axe-core/playwright + axe helper for E2E"
 **Files:**
 - Create: `frontend/A11Y_CHECKLIST.md`
 
-- [ ] **Step 1: Write the checklist**
+- [x] **Step 1: Write the checklist**
 
 ```markdown
 # Accessibility Checklist (per PR)
@@ -849,31 +860,31 @@ Automated coverage (jest-axe + `@axe-core/playwright`) catches roughly 30–40% 
 
 For each new or modified route:
 
-- [ ] **Headings:** single `<h1>`; heading levels descend without skipping
-- [ ] **Landmarks:** `<main>` present; nav/footer use semantic landmarks
-- [ ] **Page title:** `metadata.title` exports a unique, descriptive title
-- [ ] **Reading order:** Tab traversal matches visual order
-- [ ] **Skip link:** "Skip to content" link works (still focuses `#main`)
-- [ ] **Keyboard:** every interactive element reachable via Tab; no traps; Enter/Space activates
-- [ ] **Focus visible:** visible focus ring on every interactive element
-- [ ] **Screen reader:** VoiceOver pass — every control announces its name + role + state; status changes announced
-- [ ] **Contrast:** sample every text/background pair via Chrome DevTools color picker; ≥4.5:1 text, ≥3:1 UI
-- [ ] **Color-only:** no information conveyed by color alone (icons, labels, or text accompany color cues)
-- [ ] **Zoom:** 200% browser zoom — no content lost, no overlap
-- [ ] **Reflow:** 320px viewport (Chrome DevTools device mode) — no horizontal scroll for prose
-- [ ] **Mobile touch targets:** all interactive elements ≥ 44×44 px on small viewport
-- [ ] **Reduced motion:** any animations respect `prefers-reduced-motion`
-- [ ] **Status messages:** dynamic state changes use `role="status"` or `role="alert"`
-- [ ] **Forms:** every control has an associated `<label>`; error messages announced
+- [x] **Headings:** single `<h1>`; heading levels descend without skipping
+- [x] **Landmarks:** `<main>` present; nav/footer use semantic landmarks
+- [x] **Page title:** `metadata.title` exports a unique, descriptive title
+- [x] **Reading order:** Tab traversal matches visual order
+- [x] **Skip link:** "Skip to content" link works (still focuses `#main`)
+- [x] **Keyboard:** every interactive element reachable via Tab; no traps; Enter/Space activates
+- [x] **Focus visible:** visible focus ring on every interactive element
+- [x] **Screen reader:** VoiceOver pass — every control announces its name + role + state; status changes announced
+- [x] **Contrast:** sample every text/background pair via Chrome DevTools color picker; ≥4.5:1 text, ≥3:1 UI
+- [x] **Color-only:** no information conveyed by color alone (icons, labels, or text accompany color cues)
+- [x] **Zoom:** 200% browser zoom — no content lost, no overlap
+- [x] **Reflow:** 320px viewport (Chrome DevTools device mode) — no horizontal scroll for prose
+- [x] **Mobile touch targets:** all interactive elements ≥ 44×44 px on small viewport
+- [x] **Reduced motion:** any animations respect `prefers-reduced-motion`
+- [x] **Status messages:** dynamic state changes use `role="status"` or `role="alert"`
+- [x] **Forms:** every control has an associated `<label>`; error messages announced
 
 ## Per-component checks
 
 For each new or modified interactive component:
 
-- [ ] **Semantic element:** uses native HTML where possible (`<button>` not `<div onClick>`)
-- [ ] **Accessible name:** has visible text, `aria-label`, or `aria-labelledby`
-- [ ] **Decorative content:** icons/svgs without semantic meaning use `aria-hidden="true"`
-- [ ] **States:** disabled/loading/error states announced and visually distinct (not color-only)
+- [x] **Semantic element:** uses native HTML where possible (`<button>` not `<div onClick>`)
+- [x] **Accessible name:** has visible text, `aria-label`, or `aria-labelledby`
+- [x] **Decorative content:** icons/svgs without semantic meaning use `aria-hidden="true"`
+- [x] **States:** disabled/loading/error states announced and visually distinct (not color-only)
 
 ## Tooling
 
@@ -883,7 +894,7 @@ For each new or modified interactive component:
 - Manual keyboard-only walkthrough per route
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add frontend/A11Y_CHECKLIST.md
@@ -900,7 +911,7 @@ git commit -m "docs(frontend): add A11Y_CHECKLIST.md (WCAG 2.1 AA per-PR gate)"
 - Create: `frontend/components/ShingleDiagram.tsx`
 - Create: `frontend/__tests__/components/ShingleDiagram.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 import { render } from "@testing-library/react";
@@ -927,7 +938,7 @@ test("ShingleDiagram includes a textual description for screen readers", () => {
 });
 ```
 
-- [ ] **Step 2: Run to confirm it fails**
+- [x] **Step 2: Run to confirm it fails**
 
 ```bash
 cd frontend && npm test -- --testPathPattern=ShingleDiagram
@@ -935,7 +946,7 @@ cd frontend && npm test -- --testPathPattern=ShingleDiagram
 
 Expected: FAIL (component does not exist).
 
-- [ ] **Step 3: Implement the component**
+- [x] **Step 3: Implement the component**
 
 ```typescript
 export default function ShingleDiagram() {
@@ -991,7 +1002,7 @@ export default function ShingleDiagram() {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 cd frontend && npm test -- --testPathPattern=ShingleDiagram
@@ -999,7 +1010,7 @@ cd frontend && npm test -- --testPathPattern=ShingleDiagram
 
 Expected: all 3 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/components/ShingleDiagram.tsx frontend/__tests__/components/ShingleDiagram.test.tsx
@@ -1012,7 +1023,7 @@ git commit -m "feat(frontend): ShingleDiagram SVG component for /about methodolo
 - Create: `frontend/app/about/page.tsx`
 - Create: `frontend/__tests__/pages/About.test.tsx`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```typescript
 import { render, screen } from "@testing-library/react";
@@ -1066,7 +1077,7 @@ test("About page lists all 6 friction tags in the glossary", () => {
 });
 ```
 
-- [ ] **Step 2: Run to confirm failures**
+- [x] **Step 2: Run to confirm failures**
 
 ```bash
 cd frontend && npm test -- --testPathPattern=About
@@ -1074,7 +1085,7 @@ cd frontend && npm test -- --testPathPattern=About
 
 Expected: all fail (page does not exist).
 
-- [ ] **Step 3: Implement the page**
+- [x] **Step 3: Implement the page**
 
 ```typescript
 import type { Metadata } from "next";
@@ -1235,7 +1246,7 @@ export default function About() {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 cd frontend && npm test -- --testPathPattern=About
@@ -1243,7 +1254,7 @@ cd frontend && npm test -- --testPathPattern=About
 
 Expected: all 6 tests pass.
 
-- [ ] **Step 5: Manual a11y verification (record in PR description)**
+- [x] **Step 5: Manual a11y verification (record in PR description)**
 
 Open `npm run dev` and load `/about`:
 - Tab through; every link reachable, focus visible
@@ -1251,7 +1262,7 @@ Open `npm run dev` and load `/about`:
 - Chrome DevTools color picker: sample body text on dark background, formula text on slate-900 — both must report ≥ 4.5:1
 - 200% zoom: no overflow
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add frontend/app/about/page.tsx frontend/__tests__/pages/About.test.tsx
@@ -1264,7 +1275,7 @@ git commit -m "feat(frontend): /about methodology page with MinHash proof-of-wor
 - Create: `frontend/app/accessibility/page.tsx`
 - Create: `frontend/__tests__/pages/Accessibility.test.tsx`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```typescript
 import { render, screen } from "@testing-library/react";
@@ -1298,7 +1309,7 @@ test("Accessibility page provides a contact link", () => {
 });
 ```
 
-- [ ] **Step 2: Run to confirm failures**
+- [x] **Step 2: Run to confirm failures**
 
 ```bash
 cd frontend && npm test -- --testPathPattern=Accessibility
@@ -1306,7 +1317,7 @@ cd frontend && npm test -- --testPathPattern=Accessibility
 
 Expected: all fail.
 
-- [ ] **Step 3: Implement the page**
+- [x] **Step 3: Implement the page**
 
 ```typescript
 import type { Metadata } from "next";
@@ -1392,7 +1403,7 @@ export default function Accessibility() {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 cd frontend && npm test -- --testPathPattern=Accessibility
@@ -1400,7 +1411,7 @@ cd frontend && npm test -- --testPathPattern=Accessibility
 
 Expected: all 4 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/app/accessibility/page.tsx frontend/__tests__/pages/Accessibility.test.tsx
@@ -1412,7 +1423,7 @@ git commit -m "feat(frontend): /accessibility statement page (WCAG 2.1 AA)"
 **Files:**
 - Create: `frontend/e2e/about.spec.ts`
 
-- [ ] **Step 1: Write the E2E spec**
+- [x] **Step 1: Write the E2E spec**
 
 ```typescript
 import { test, expect } from "@playwright/test";
@@ -1436,7 +1447,7 @@ test("accessibility page renders WCAG statement and contact link", async ({ page
 });
 ```
 
-- [ ] **Step 2: Run E2E locally**
+- [x] **Step 2: Run E2E locally**
 
 ```bash
 cd frontend && npm run build && npm run e2e -- --grep "about page|accessibility page"
@@ -1444,7 +1455,7 @@ cd frontend && npm run build && npm run e2e -- --grep "about page|accessibility 
 
 Expected: 2 pass.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/e2e/about.spec.ts
@@ -1453,7 +1464,7 @@ git commit -m "test(e2e): about + accessibility page E2E + axe scan"
 
 ### Task 4.5: Open PR for `/about` + `/accessibility`
 
-- [ ] **Step 1: Push and open PR**
+- [x] **Step 1: Push and open PR**
 
 ```bash
 git push -u origin feat/about-and-accessibility-pages
@@ -1476,15 +1487,15 @@ gh pr create --title "feat(frontend): /about methodology + /accessibility statem
 - [x] 200% zoom + 320px reflow verified
 
 ## Test plan
-- [ ] `npm test -- --testPathPattern="About|Accessibility|ShingleDiagram|api"` — all pass
-- [ ] `npm run e2e -- --grep "about|accessibility"` — both pass
+- [x] `npm test -- --testPathPattern="About|Accessibility|ShingleDiagram|api"` — all pass
+- [x] `npm run e2e -- --grep "about|accessibility"` — both pass
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
 )"
 ```
 
-- [ ] **Step 2: Wait for CI green, merge, return to main**
+- [x] **Step 2: Wait for CI green, merge, return to main**
 
 ```bash
 gh pr merge --squash
