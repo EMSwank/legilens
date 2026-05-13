@@ -186,11 +186,121 @@ Filter state lives in URL — shareable, bookmarkable, supports deep-linking fro
 
 ## 4. Testing
 
-| Area | What to add |
-|------|------------|
-| Backend | 2 tests for `GET /bills/sessions`, 2 tests for `tag_type` filter on `GET /bills` |
-| Frontend unit | jest-axe tests for `/about`, `/tags`, session dropdown, filter chip row |
-| E2E | Playwright: tag filter via /tags → dashboard, chip dismissal removes filter, session filter + dismiss, about page renders |
+Test cases below are explicit so they don't need to be inferred during implementation. Each bullet = one test.
+
+### 4a. Backend (pytest-asyncio, using `dependency_overrides`)
+
+**`GET /bills/sessions`:**
+- Returns distinct session strings from non-corpus-only bills
+- Returns `[]` when DB has zero non-corpus-only bills
+- Returns sessions sorted descending (most recent first)
+- Excludes bills where `is_corpus_only=True`
+- Returns 400 when User-Agent header is missing (consistent with other endpoints)
+
+**`tag_type` filter on `GET /bills`:**
+- Happy path: passing `tag_type` returns only bills with that friction tag
+- No matches: returns `[]` when no bills have the requested tag
+- Compound filter: `tag_type` + `session` filters AND-combine correctly
+- Compound filter: `tag_type` + `status` filters AND-combine correctly
+- Pagination still works: `tag_type` + `page=2&size=10` returns the second page
+- `copycat_alert` still propagates: outer join on `ISTScore` not broken by the new inner join
+- Invalid `tag_type` (unknown string) returns `[]`, not 500
+
+**Regression coverage (existing `list_bills` behavior):**
+- Existing tests for `list_bills` without `tag_type` still pass after the query change
+- Existing UUID-based `GET /bills/{bill_id}` route still works (route ordering didn't shadow it)
+
+**CORS middleware:**
+- Production URL listed in `ALLOWED_ORIGINS` receives `Access-Control-Allow-Origin` header
+- A `https://legilens-abc123.vercel.app` preview URL receives the header (regex match)
+- An unrelated origin (e.g., `https://evil.example.com`) does NOT receive the header
+
+### 4b. Frontend unit (jest + jest-axe + React Testing Library)
+
+**`/about` page (`__tests__/about.test.tsx`):**
+- Renders without axe violations
+- Shingling SVG diagram is in the DOM
+- All 5 section headings render in order
+- Jaccard formula text is present
+
+**`/tags` page (`__tests__/tags.test.tsx`):**
+- Renders without axe violations
+- All 6 tag types render as cards when API returns them
+- Each card's link points to `/?tag_type=<URL-encoded tag name>`
+- Tag bill count displays correctly
+- Loading state (`isPending`) shows skeleton/spinner
+- Error state (`isError`) shows `role="alert"` message
+- Empty state (API returns `[]`) shows "no tags yet" message
+
+**Filter chip row (`__tests__/FilterChips.test.tsx`):**
+- Does not render when neither `session` nor `tag_type` is in URL
+- Renders one chip when only `session` is set
+- Renders one chip when only `tag_type` is set
+- Renders two chips when both are set
+- Clicking × on a chip removes only that filter from URL (other filter preserved)
+- Chip × button is keyboard accessible (Tab focuses, Enter/Space dismisses)
+- No axe violations in any state
+
+**Session dropdown (`__tests__/SessionDropdown.test.tsx`):**
+- Renders "All sessions" + one option per fetched session
+- Selecting an option writes `?session=` to URL
+- Selecting "All sessions" removes `?session=` from URL
+- Preserves other URL params (`?q=`, `?tag_type=`) when selection changes
+- No axe violations
+
+**API client (`__tests__/api.test.ts`):**
+- `api.bills({session: '2025A'})` requests `/bills?session=2025A`
+- `api.bills({tag_type: 'Source-Cloned'})` requests `/bills?tag_type=Source-Cloned`
+- `api.bills({session: '2025A', tag_type: 'Source-Cloned'})` requests both params
+- URL-encodes tag values containing spaces (`Technical Conflict` → `Technical+Conflict` or `Technical%20Conflict`)
+- `api.tags()` requests `/tags`
+- `api.sessions()` requests `/bills/sessions`
+
+**Dashboard integration (`__tests__/dashboard.test.tsx`):**
+- Reads `?tag_type=` from URL on mount and passes to `api.bills()`
+- Reads `?session=` from URL on mount and passes to `api.bills()`
+- URL param change triggers TanStack Query refetch
+- Deep-link `/?tag_type=Source-Cloned&session=2025A` renders filtered list
+
+### 4c. End-to-end (Playwright)
+
+**Full filter journey:**
+- Visit `/`, click "Tags" nav link → land on `/tags`
+- Click a tag card → land on `/?tag_type=...` with filtered list
+- Dismiss the chip → URL clears `tag_type`, full list returns
+
+**Compound filtering:**
+- From `/?tag_type=Source-Cloned`, select session "2025A" from dropdown → URL becomes `/?tag_type=Source-Cloned&session=2025A`
+- Two chips visible; dismiss the tag chip → only `session` remains
+
+**Bookmarkable / deep-link:**
+- Direct navigation to `/?tag_type=Source-Cloned&session=2025A` renders correctly filtered list (proves URL is source of truth)
+
+**About page:**
+- Loads at `/about`, all sections render, shingling SVG visible
+
+**Mobile viewport:**
+- Filter chips remain dismissible on a 375px-wide viewport (touch targets ≥ 44px per WCAG 2.5.5)
+
+### 4d. Deployment smoke tests (manual, post-deploy checklist)
+
+Document these as required checks after each Railway/Vercel deploy. Not automated CI yet; can become a GitHub Action later.
+
+**Backend (Railway web service):**
+- `curl https://<railway-web-url>/stats -H 'User-Agent: smoke-test'` returns 200 with non-empty JSON
+- `curl https://<railway-web-url>/bills/sessions -H 'User-Agent: smoke-test'` returns 200 with a list
+
+**Backend (Railway worker service):**
+- Railway logs show APScheduler "Scheduler started" line at boot
+- After first scheduled run, `bills` table row count > 0 (verify via Neon SQL editor)
+
+**Database:**
+- `alembic_version` table contains the latest revision hash matching `backend/alembic/versions/`
+
+**Frontend (Vercel):**
+- Production URL loads dashboard, stats grid populated (proves end-to-end CORS + API connectivity)
+- Navigate to `/about` and `/tags`, both render
+- Click a tag card, confirm dashboard filters and chip is dismissible
 
 ---
 
