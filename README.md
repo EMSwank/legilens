@@ -63,7 +63,15 @@ MVP is under active development.
 |--------|-------|--------|
 | Sprint 1 | Data ingestion, MinHash pipeline, nightly worker | ✅ Complete |
 | Sprint 2 | FastAPI endpoints, Pydantic schemas, rate limiting | ✅ Complete |
-| Sprint 3 | Next.js frontend, WCAG 2.1 AA, Playwright E2E | 🔄 In progress |
+| Sprint 3 | Next.js frontend, WCAG 2.1 AA, Playwright E2E | ✅ Complete |
+
+### Sprint 3 — what shipped
+
+- Dashboard: bill list with copycat alert badges, stats grid, 300ms-debounced search with URL sync
+- Bill detail: IST score gauge (Recharts radial chart, `role="img"` + `aria-label`), friction tag badges, similarity match cards with side-by-side snippet diffs, journalist copy button, ghost alert for missing source text, pending state banner
+- WCAG 2.1 AA throughout: skip link, focus rings, `role="alert"` / `role="status"` on dynamic states, all components pass `axe-core` automated scan
+- 42 jest-axe unit tests (TDD on every component), 16 Playwright E2E scenarios (dashboard + bill detail)
+- CI: backend pytest, frontend lint/unit/E2E, Pylint — all wired to `pull_request` on main
 
 ### Sprint 2 — what shipped
 
