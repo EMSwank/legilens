@@ -79,12 +79,12 @@ export default function About() {
 
         <h3 className="text-lg font-semibold text-white pt-2">2. Jaccard similarity</h3>
         <p>The similarity between two bills is the Jaccard index of their shingle sets:</p>
-        <p
-          className="rounded-md bg-slate-900 px-4 py-3 font-mono text-blue-200"
+        <code
+          className="block rounded-md bg-slate-900 px-4 py-3 font-mono text-blue-200"
           aria-label="Jaccard similarity formula: J of A and B equals the size of A intersected with B over the size of A unioned with B"
         >
           J(A, B) = |A ∩ B| / |A ∪ B|
-        </p>
+        </code>
         <p>
           A value of 1.0 means identical shingle sets; 0.0 means no overlap.
         </p>
