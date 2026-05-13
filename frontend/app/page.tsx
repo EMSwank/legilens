@@ -78,7 +78,7 @@ function DashboardContent() {
         {billsPending && <PendingBanner />}
 
         {!billsPending && !billsError && bills?.length === 0 && (
-          <p className="text-slate-500">No bills match your search.</p>
+          <p className="text-slate-400">No bills match your search.</p>
         )}
 
         <div className="space-y-2">

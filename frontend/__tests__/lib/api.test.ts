@@ -47,3 +47,8 @@ test("api.sessions hits /bills/sessions", async () => {
   await api.sessions();
   expect(lastUrl()).toMatch(/\/bills\/sessions$/);
 });
+
+test("api.bills with page=0 appends page query param", async () => {
+  await api.bills({ page: 0 });
+  expect(lastUrl()).toMatch(/\/bills\?page=0$/);
+});

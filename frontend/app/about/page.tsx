@@ -142,7 +142,7 @@ export default function About() {
         <h2 className="text-2xl font-bold text-white">Data sources</h2>
         <p>
           Bill text and status come from{" "}
-          <a href="https://legiscan.com" className="text-blue-300 underline">LegiScan</a>,
+          <a href="https://legiscan.com" className="text-blue-300 underline" target="_blank" rel="noopener noreferrer">LegiScan</a>,
           which aggregates legislative data across all 50 U.S. states. LegiLens
           syncs nightly. The corpus exceeds 190,000 bills as of launch.
         </p>

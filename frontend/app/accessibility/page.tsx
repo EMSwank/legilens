@@ -55,6 +55,8 @@ export default function Accessibility() {
           <a
             href="https://github.com/EMSwank/legilens/issues/new?labels=a11y"
             className="text-blue-300 underline"
+            target="_blank"
+            rel="noopener noreferrer"
           >
             github.com/EMSwank/legilens/issues
           </a>
