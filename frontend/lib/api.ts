@@ -1,4 +1,4 @@
-import type { BillListItem, BillDetail, Match, Stats } from "./types";
+import type { BillListItem, BillDetail, Match, Stats, TagCount } from "./types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const HEADERS = { "User-Agent": "LegiLens-Frontend/1.0" };
@@ -10,10 +10,11 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const api = {
-  bills: (params?: { session?: string; status?: string; page?: number }): Promise<BillListItem[]> => {
+  bills: (params?: { session?: string; status?: string; tag_type?: string; page?: number }): Promise<BillListItem[]> => {
     const q = new URLSearchParams();
     if (params?.session) q.set("session", params.session);
     if (params?.status) q.set("status", params.status);
+    if (params?.tag_type) q.set("tag_type", params.tag_type);
     if (params?.page) q.set("page", String(params.page));
     const qs = q.toString();
     return get<BillListItem[]>(qs ? `/bills?${qs}` : "/bills");
@@ -26,4 +27,6 @@ export const api = {
     get<Match[]>(`/bills/${billId}/matches`),
   stats: (): Promise<Stats> =>
     get<Stats>("/stats"),
+  tags: (): Promise<TagCount[]> => get<TagCount[]>("/tags"),
+  sessions: (): Promise<string[]> => get<string[]>("/bills/sessions"),
 };

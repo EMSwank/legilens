@@ -1,0 +1,44 @@
+/**
+ * @jest-environment node
+ */
+import { api } from "@/lib/api";
+
+const fetchMock = jest.fn();
+global.fetch = fetchMock as unknown as typeof fetch;
+
+beforeEach(() => {
+  fetchMock.mockReset();
+  fetchMock.mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => [],
+  });
+});
+
+const lastUrl = () => fetchMock.mock.calls[0][0] as string;
+
+test("api.bills with session appends session query param", async () => {
+  await api.bills({ session: "2025A" });
+  expect(lastUrl()).toMatch(/\/bills\?session=2025A$/);
+});
+
+test("api.bills with tag_type appends tag_type query param", async () => {
+  await api.bills({ tag_type: "source_cloned" });
+  expect(lastUrl()).toMatch(/\/bills\?tag_type=source_cloned$/);
+});
+
+test("api.bills with session + tag_type appends both", async () => {
+  await api.bills({ session: "2025A", tag_type: "source_cloned" });
+  expect(lastUrl()).toContain("session=2025A");
+  expect(lastUrl()).toContain("tag_type=source_cloned");
+});
+
+test("api.tags hits /tags", async () => {
+  await api.tags();
+  expect(lastUrl()).toMatch(/\/tags$/);
+});
+
+test("api.sessions hits /bills/sessions", async () => {
+  await api.sessions();
+  expect(lastUrl()).toMatch(/\/bills\/sessions$/);
+});
