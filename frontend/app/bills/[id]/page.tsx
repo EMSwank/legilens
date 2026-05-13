@@ -55,7 +55,7 @@ export default function BillDetailPage() {
           ) : null}
 
           <section aria-label="Similarity matches">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">
               Similarity Matches
             </h2>
             {matchesPending ? (

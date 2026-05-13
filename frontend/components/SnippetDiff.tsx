@@ -4,7 +4,7 @@ export default function SnippetDiff({ snippet }: { snippet: SnippetItem }) {
   return (
     <div className="grid grid-cols-2 gap-4 rounded-md bg-slate-800 p-4 text-sm">
       <div>
-        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Colorado</p>
+        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Colorado</p>
         {snippet.co_context_before && (
           <p className="text-slate-500 italic">{snippet.co_context_before}</p>
         )}
@@ -16,7 +16,7 @@ export default function SnippetDiff({ snippet }: { snippet: SnippetItem }) {
         )}
       </div>
       <div>
-        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Source</p>
+        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Source</p>
         {snippet.source_context_before && (
           <p className="text-slate-500 italic">{snippet.source_context_before}</p>
         )}
