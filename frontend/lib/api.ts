@@ -15,7 +15,7 @@ export const api = {
     if (params?.session) q.set("session", params.session);
     if (params?.status) q.set("status", params.status);
     if (params?.tag_type) q.set("tag_type", params.tag_type);
-    if (params?.page) q.set("page", String(params.page));
+    if (params?.page !== undefined) q.set("page", String(params.page));
     const qs = q.toString();
     return get<BillListItem[]>(qs ? `/bills?${qs}` : "/bills");
   },

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { expectNoAxeViolations } from "./axe-helper";
 
 const statsFixture = { total_co_bills: 342, copycat_alerts: 17, bills_analyzed: 289 };
 
@@ -113,4 +114,10 @@ test("/bills API error shows error alert", async ({ page }) => {
   await page.route("**/bills", (route) => route.fulfill({ status: 500 }));
   await page.goto("/");
   await expect(page.getByRole("alert")).toBeVisible();
+});
+
+test("dashboard has no axe violations", async ({ page }) => {
+  await interceptDefault(page);
+  await page.goto("/");
+  await expectNoAxeViolations(page, "/");
 });

@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import type { BillDetail, Match } from "@/lib/types";
+import { expectNoAxeViolations } from "./axe-helper";
 
 const billFixture: BillDetail = {
   id: "bill-1",
@@ -129,4 +130,10 @@ test("/bills/bad-id 404 renders error state with back link", async ({ page }) =>
   });
   await page.goto("/bills/bad-id");
   await expect(page.getByRole("link", { name: /back/i })).toBeVisible();
+});
+
+test("bill detail has no axe violations", async ({ page }) => {
+  await interceptBill(page);
+  await page.goto("/bills/bill-1");
+  await expectNoAxeViolations(page, "/bills/bill-1");
 });

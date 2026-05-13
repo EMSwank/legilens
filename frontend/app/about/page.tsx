@@ -42,7 +42,7 @@ const TAGS = [
 
 export default function About() {
   return (
-    <main id="main" className="min-h-screen bg-slate-950 mx-auto max-w-3xl px-4 py-12 space-y-10 text-slate-200">
+    <main id="main" className="mx-auto max-w-3xl px-4 py-12 space-y-10 text-slate-200">
       <header>
         <h1 className="text-4xl font-black tracking-tight text-white">About LegiLens</h1>
         <p className="mt-3 text-slate-400">
