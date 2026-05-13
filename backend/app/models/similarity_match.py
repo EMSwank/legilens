@@ -18,8 +18,12 @@ class SimilarityMatch(Base):
     )
 
     id: Mapped[PyUUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
-    bill_id: Mapped[PyUUID] = mapped_column(PgUUID(as_uuid=True), ForeignKey("bills.id", ondelete="CASCADE"), nullable=False, index=True)
-    matched_bill_id: Mapped[PyUUID] = mapped_column(PgUUID(as_uuid=True), ForeignKey("bills.id", ondelete="CASCADE"), nullable=False, index=True)
+    bill_id: Mapped[PyUUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("bills.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    matched_bill_id: Mapped[PyUUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("bills.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     matched_state: Mapped[str | None] = mapped_column(String(2))
     similarity_score: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)
     algorithm: Mapped[str] = mapped_column(Text, nullable=False, default="minhash")

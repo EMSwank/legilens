@@ -16,11 +16,8 @@ async def client():
 async def test_get_bills_returns_200(client):
     c, app, get_db = client
     mock_session = AsyncMock()
-    # scalars() and all() are synchronous on the Result object; only execute() is async
-    scalars_result = MagicMock()
-    scalars_result.all.return_value = []
     execute_result = MagicMock()
-    execute_result.scalars.return_value = scalars_result
+    execute_result.all.return_value = []
     mock_session.execute.return_value = execute_result
 
     async def override():
@@ -63,10 +60,8 @@ async def test_get_bill_detail_404_on_missing(client):
 async def test_get_bills_search_returns_200(client):
     c, app, get_db = client
     mock_session = AsyncMock()
-    scalars_result = MagicMock()
-    scalars_result.all.return_value = []
     execute_result = MagicMock()
-    execute_result.scalars.return_value = scalars_result
+    execute_result.all.return_value = []
     mock_session.execute.return_value = execute_result
 
     async def override():
@@ -80,6 +75,62 @@ async def test_get_bills_search_returns_200(client):
 
     assert resp.status_code == 200
     assert isinstance(resp.json(), list)
+
+
+async def test_get_bills_propagates_copycat_alert(client):
+    c, app, get_db = client
+    bill_id = uuid4()
+    mock_bill = MagicMock()
+    mock_bill.id = bill_id
+    mock_bill.bill_number = "HB22-9999"
+    mock_bill.title = "Copycat Bill"
+    mock_bill.state = "CO"
+    mock_bill.session = "2022"
+    mock_bill.status = "Introduced"
+    mock_session = AsyncMock()
+    execute_result = MagicMock()
+    execute_result.all.return_value = [(mock_bill, True)]
+    mock_session.execute.return_value = execute_result
+
+    async def override():
+        yield mock_session
+
+    app.dependency_overrides[get_db] = override
+    try:
+        resp = await c.get("/bills", headers={"User-Agent": "TestClient/1.0"})
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+    assert resp.json()[0]["copycat_alert"] is True
+
+
+async def test_search_bills_propagates_copycat_alert(client):
+    c, app, get_db = client
+    bill_id = uuid4()
+    mock_bill = MagicMock()
+    mock_bill.id = bill_id
+    mock_bill.bill_number = "HB22-9998"
+    mock_bill.title = "Cloned Policy Act"
+    mock_bill.state = "CO"
+    mock_bill.session = "2022"
+    mock_bill.status = "Introduced"
+    mock_session = AsyncMock()
+    execute_result = MagicMock()
+    execute_result.all.return_value = [(mock_bill, True)]
+    mock_session.execute.return_value = execute_result
+
+    async def override():
+        yield mock_session
+
+    app.dependency_overrides[get_db] = override
+    try:
+        resp = await c.get("/bills/search?q=clone", headers={"User-Agent": "TestClient/1.0"})
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+    assert resp.json()[0]["copycat_alert"] is True
 
 
 async def test_get_bill_detail_returns_200(client):

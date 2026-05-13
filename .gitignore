@@ -29,3 +29,5 @@ out/
 # IDE
 .vscode/
 .idea/
+/backend/.coverage
+/frontend/test-results/*.json

@@ -29,3 +29,11 @@ jobs:
     - name: Build (type check)
       run: npm run build
       working-directory: frontend
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps chromium
+      working-directory: frontend
+    - name: E2E tests
+      run: npm run e2e
+      working-directory: frontend
+      env:
+        CI: true

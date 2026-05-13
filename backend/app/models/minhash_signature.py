@@ -10,6 +10,8 @@ class MinHashSignature(Base):
     __tablename__ = "minhash_signatures"
 
     id: Mapped[PyUUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
-    bill_id: Mapped[PyUUID] = mapped_column(PgUUID(as_uuid=True), ForeignKey("bills.id", ondelete="CASCADE"), nullable=False, index=True)
+    bill_id: Mapped[PyUUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("bills.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     signature: Mapped[list[int]] = mapped_column(ARRAY(BIGINT), nullable=False)
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
