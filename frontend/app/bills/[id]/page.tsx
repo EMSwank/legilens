@@ -55,7 +55,7 @@ export default function BillDetailPage() {
           ) : null}
 
           <section aria-label="Similarity matches">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">
               Similarity Matches
             </h2>
             {matchesPending ? (
@@ -68,7 +68,7 @@ export default function BillDetailPage() {
                 Failed to load similarity matches.
               </div>
             ) : matches && matches.length === 0 ? (
-              <p className="text-slate-500">No similarity matches found.</p>
+              <p className="text-slate-400">No similarity matches found.</p>
             ) : matches ? (
               matches.map((match) => (
                 <MatchCard

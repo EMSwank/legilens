@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import type { BillDetail, Match } from "@/lib/types";
+import { expectNoAxeViolations } from "./axe-helper";
 
 const billFixture: BillDetail = {
   id: "bill-1",
@@ -37,6 +38,27 @@ const matchesFixture: Match[] = [
         source_context_before: "",
         source_match: "data processing by government entities",
         source_context_after: "",
+      },
+    ],
+  },
+];
+
+const matchesWithContextFixture: Match[] = [
+  {
+    id: "match-ctx",
+    matched_bill_title: "Texas Digital Data Rights Act",
+    matched_state: "TX",
+    similarity_score: 87.3,
+    snippet_status: "verified",
+    matched_snippets: [
+      {
+        kind: "snippet" as const,
+        co_context_before: "as defined in section 5,",
+        co_match: "data collection by state agencies",
+        co_context_after: "shall be reported annually.",
+        source_context_before: "pursuant to chapter 12,",
+        source_match: "data processing by government entities",
+        source_context_after: "must be disclosed.",
       },
     ],
   },
@@ -129,4 +151,22 @@ test("/bills/bad-id 404 renders error state with back link", async ({ page }) =>
   });
   await page.goto("/bills/bad-id");
   await expect(page.getByRole("link", { name: /back/i })).toBeVisible();
+});
+
+test("bill detail has no axe violations", async ({ page }) => {
+  await interceptBill(page);
+  await page.goto("/bills/bill-1");
+  await expectNoAxeViolations(page, "/bills/bill-1");
+});
+
+test("bill detail with populated snippet context has no axe violations", async ({ page }) => {
+  await interceptBill(page, billFixture, matchesWithContextFixture);
+  await page.goto("/bills/bill-1");
+  await expectNoAxeViolations(page, "/bills/bill-1 (with context)");
+});
+
+test("bill detail with no matches has no axe violations", async ({ page }) => {
+  await interceptBill(page, { ...billFixture, ist_score: null }, []);
+  await page.goto("/bills/bill-1");
+  await expectNoAxeViolations(page, "/bills/bill-1 (no matches)");
 });
