@@ -15,6 +15,7 @@ router = APIRouter(prefix="/bills", dependencies=[Depends(require_user_agent)])
 async def list_bills(
     session: str | None = None,
     status: str | None = None,
+    tag_type: str | None = None,
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -28,6 +29,10 @@ async def list_bills(
         q = q.where(Bill.session == session)
     if status:
         q = q.where(Bill.status == status)
+    if tag_type:
+        q = q.where(Bill.id.in_(
+            select(FrictionTag.bill_id).where(FrictionTag.tag_type == tag_type)
+        ))
     q = q.offset((page - 1) * size).limit(size)
     result = await db.execute(q)
     rows = result.all()
@@ -71,6 +76,17 @@ async def search_bills(
         )
         for b, copycat_alert in rows
     ]
+
+
+@router.get("/sessions", response_model=list[str])
+async def list_sessions(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Bill.session)
+        .where(Bill.is_corpus_only.is_(False))
+        .distinct()
+        .order_by(Bill.session.desc())
+    )
+    return [row[0] for row in result.all()]
 
 
 @router.get("/{bill_id}", response_model=BillDetail)

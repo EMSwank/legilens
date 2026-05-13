@@ -1,0 +1,6 @@
+[build]
+buildCommand = "pip install -r backend/requirements.txt"
+
+[deploy]
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

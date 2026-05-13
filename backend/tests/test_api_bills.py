@@ -182,3 +182,168 @@ async def test_get_bills_search_requires_user_agent(client):
     c, app, get_db = client
     resp = await c.get("/bills/search?q=fees", headers={"User-Agent": ""})
     assert resp.status_code == 400
+
+
+async def test_get_bills_with_tag_type_filter():
+    """When tag_type is passed, the query uses an IN subquery on friction_tags to avoid duplicate rows."""
+    from app.main import app
+    from app.dependencies import get_db
+
+    captured = []
+
+    async def execute_spy(stmt):
+        captured.append(str(stmt))
+        result = MagicMock()
+        result.all.return_value = []
+        return result
+
+    mock_session = AsyncMock()
+    mock_session.execute.side_effect = execute_spy
+
+    async def override():
+        yield mock_session
+
+    app.dependency_overrides[get_db] = override
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            resp = await c.get(
+                "/bills?tag_type=source_cloned",
+                headers={"User-Agent": "TestClient/1.0"},
+            )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+    stmt = captured[0].lower()
+    assert "friction_tag" in stmt
+    assert "tag_type" in stmt
+
+
+async def test_get_bills_tag_type_combines_with_session_and_status():
+    from app.main import app
+    from app.dependencies import get_db
+
+    captured = []
+
+    async def execute_spy(stmt):
+        captured.append(str(stmt))
+        result = MagicMock()
+        result.all.return_value = []
+        return result
+
+    mock_session = AsyncMock()
+    mock_session.execute.side_effect = execute_spy
+
+    async def override():
+        yield mock_session
+
+    app.dependency_overrides[get_db] = override
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            resp = await c.get(
+                "/bills?tag_type=source_cloned&session=2025A&status=Passed",
+                headers={"User-Agent": "TestClient/1.0"},
+            )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+    stmt = captured[0].lower()
+    assert "tag_type" in stmt
+    assert "session" in stmt
+    assert "status" in stmt
+
+
+async def test_get_bills_invalid_tag_type_returns_empty_list():
+    """An unknown tag_type returns 200 with [], not 500."""
+    from app.main import app
+    from app.dependencies import get_db
+
+    mock_session = AsyncMock()
+    execute_result = MagicMock()
+    execute_result.all.return_value = []
+    mock_session.execute.return_value = execute_result
+
+    async def override():
+        yield mock_session
+
+    app.dependency_overrides[get_db] = override
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            resp = await c.get(
+                "/bills?tag_type=not_a_real_tag",
+                headers={"User-Agent": "TestClient/1.0"},
+            )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+async def test_get_bills_without_tag_type_does_not_join_friction_tags():
+    """Regression: unfiltered list_bills must NOT join friction_tags."""
+    from app.main import app
+    from app.dependencies import get_db
+
+    captured = []
+
+    async def execute_spy(stmt):
+        captured.append(str(stmt))
+        result = MagicMock()
+        result.all.return_value = []
+        return result
+
+    mock_session = AsyncMock()
+    mock_session.execute.side_effect = execute_spy
+
+    async def override():
+        yield mock_session
+
+    app.dependency_overrides[get_db] = override
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            resp = await c.get("/bills", headers={"User-Agent": "TestClient/1.0"})
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+    stmt = captured[0].lower()
+    assert "friction_tag" not in stmt
+
+
+async def test_get_bills_tag_type_uses_subquery_not_join():
+    """tag_type filter must use IN subquery, not a join, to prevent duplicate rows
+    when a bill has multiple friction_tags with the same tag_type."""
+    from app.main import app
+    from app.dependencies import get_db
+
+    captured = []
+
+    async def execute_spy(stmt):
+        captured.append(str(stmt))
+        result = MagicMock()
+        result.all.return_value = []
+        return result
+
+    mock_session = AsyncMock()
+    mock_session.execute.side_effect = execute_spy
+
+    async def override():
+        yield mock_session
+
+    app.dependency_overrides[get_db] = override
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            await c.get("/bills?tag_type=source_cloned", headers={"User-Agent": "TestClient/1.0"})
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    stmt = captured[0].lower()
+    assert "bills.id in" in stmt or "bills.id in(" in stmt
+    assert "join friction_tags" not in stmt
