@@ -103,7 +103,7 @@ function DashboardContent() {
 
 export default function Dashboard() {
   return (
-    <Suspense>
+    <Suspense fallback={<PendingBanner />}>
       <DashboardContent />
     </Suspense>
   );

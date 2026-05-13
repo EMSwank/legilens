@@ -17,7 +17,7 @@ export default function MatchCard({ match, billNumber, billState, istScore }: Pr
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="rounded bg-slate-700 px-2 py-0.5 text-xs font-mono text-slate-300">
-            [{match.matched_state}]
+            [{match.matched_state ?? "?"}]
           </span>
           <span className="font-semibold text-slate-200">
             {match.matched_bill_title ?? "Unknown Bill"}
