@@ -57,7 +57,7 @@ LegiScan API → Nightly Worker → Postgres → FastAPI → Next.js
 
 ## Status
 
-MVP is under active development.
+MVP shipped — deployed on Railway (backend) + Vercel (frontend). Post-MVP modules (SNP, ALE, CGE) are under active development.
 
 | Sprint | Scope | Status |
 |--------|-------|--------|
