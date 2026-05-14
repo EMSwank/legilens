@@ -25,6 +25,7 @@ function DashboardContent() {
   const q = searchParams.get("q") ?? "";
   const session = searchParams.get("session");
   const tagType = searchParams.get("tag_type");
+  const searchActive = q.length >= 2;
 
   const { data: stats, isError: statsError } = useQuery({
     queryKey: ["stats"],
@@ -36,7 +37,7 @@ function DashboardContent() {
     queryFn: api.sessions,
   });
 
-  const billsKey = q.length >= 2
+  const billsKey = searchActive
     ? ["bills", "search", q]
     : ["bills", { session, tagType }];
 
@@ -47,7 +48,7 @@ function DashboardContent() {
   } = useQuery({
     queryKey: billsKey,
     queryFn: () => {
-      if (q.length >= 2) return api.searchBills(q);
+      if (searchActive) return api.searchBills(q);
       return api.bills({
         session: session ?? undefined,
         tag_type: tagType ?? undefined,
@@ -108,45 +109,51 @@ function DashboardContent() {
           />
         </div>
 
-        <FilterChips
-          session={session}
-          tagType={tagType}
-          tagLabels={TAG_LABELS}
-          onRemoveSession={() => updateParam("session", null)}
-          onRemoveTag={() => updateParam("tag_type", null)}
-        />
-
-        {billsError && (
-          <div
-            role="alert"
-            className="rounded-md border border-red-500/30 bg-red-900/20 p-3 text-sm text-red-300"
-          >
-            Failed to load bills.
-          </div>
+        {!searchActive && (
+          <FilterChips
+            session={session}
+            tagType={tagType}
+            tagLabels={TAG_LABELS}
+            onRemoveSession={() => updateParam("session", null)}
+            onRemoveTag={() => updateParam("tag_type", null)}
+          />
         )}
 
-        {billsPending && <PendingBanner />}
+        <div aria-live="polite" aria-label="Bills">
+          {billsError && (
+            <div
+              role="alert"
+              className="rounded-md border border-red-500/30 bg-red-900/20 p-3 text-sm text-red-300"
+            >
+              Failed to load bills.
+            </div>
+          )}
 
-        {!billsPending && !billsError && bills?.length === 0 && (
-          <p className="text-slate-400">No bills match the current filters.</p>
-        )}
+          {billsPending && <PendingBanner />}
 
-        <ul className="space-y-2 mt-4" aria-live="polite" aria-label="Bills list">
-          {bills?.map((bill) => (
-            <li key={bill.id}>
-              <Link
-                href={`/bills/${bill.id}`}
-                className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-800/50 px-4 py-3 hover:border-slate-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
-              >
-                <div>
-                  <span className="font-mono text-sm text-slate-400">{bill.bill_number}</span>
-                  <p className="font-medium text-slate-200">{bill.title}</p>
-                </div>
-                {bill.copycat_alert && <TagBadge type="source_cloned" />}
-              </Link>
-            </li>
-          ))}
-        </ul>
+          {!billsPending && !billsError && bills?.length === 0 && (
+            <p className="text-slate-400">No bills match the current filters.</p>
+          )}
+
+          {bills && bills.length > 0 && (
+            <ul className="space-y-2 mt-4">
+              {bills.map((bill) => (
+                <li key={bill.id}>
+                  <Link
+                    href={`/bills/${bill.id}`}
+                    className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-800/50 px-4 py-3 hover:border-slate-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                  >
+                    <div>
+                      <span className="font-mono text-sm text-slate-400">{bill.bill_number}</span>
+                      <p className="font-medium text-slate-200">{bill.title}</p>
+                    </div>
+                    {bill.copycat_alert && <TagBadge type="source_cloned" />}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </section>
     </main>
   );
