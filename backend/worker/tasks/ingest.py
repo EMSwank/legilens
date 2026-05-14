@@ -38,7 +38,8 @@ async def ingest_all_states():
                         await _process_bill(session, cache, bill, state)
                     await cache.set_dataset_hash(session_id, current_hash)
                 except Exception:  # pylint: disable=broad-exception-caught
-                    logger.exception("Failed to ingest dataset session_id=%s state=%s — skipping", session_id, state)
+                    logger.exception("Failed to ingest dataset session_id=%s state=%s - skipping", session_id, state)
+                    await session.rollback()
     finally:
         await client.close()
         await cache.close()
