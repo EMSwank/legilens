@@ -12,13 +12,13 @@ import app.models.similarity_match
 import app.models.friction_tag
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url)
+config.set_main_option("sqlalchemy.url", settings.asyncpg_database_url)
 if config.config_file_name:
     fileConfig(config.config_file_name)
 target_metadata = Base.metadata
 
 def run_migrations_offline():
-    context.configure(url=settings.database_url, target_metadata=target_metadata, literal_binds=True)
+    context.configure(url=settings.asyncpg_database_url, target_metadata=target_metadata, literal_binds=True)
     with context.begin_transaction():
         context.run_migrations()
 
@@ -27,15 +27,9 @@ def do_run_migrations(connection):
     with context.begin_transaction():
         context.run_migrations()
 
-def _asyncpg_url(url: str) -> str:
-    for prefix in ("postgresql://", "postgres://"):
-        if url.startswith(prefix):
-            return "postgresql+asyncpg://" + url[len(prefix):]
-    return url
-
 async def run_async_migrations():
     connectable = async_engine_from_config(
-        {"sqlalchemy.url": _asyncpg_url(settings.database_url)},
+        {"sqlalchemy.url": settings.asyncpg_database_url},
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
