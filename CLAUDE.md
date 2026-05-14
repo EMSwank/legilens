@@ -55,6 +55,7 @@ To quantify the "Friction Gap" in the Colorado General Assembly by analyzing the
 | Sprint 1 | LegiScan ingestion, MinHash LSH pipeline, nightly worker, Postgres schema | ✅ Merged to main |
 | Sprint 2 | FastAPI read-only API, Pydantic v2 schemas, rate limiting, 56 tests | ✅ Merged to main |
 | Sprint 3 | Next.js 16 frontend, WCAG 2.1 AA, TanStack Query, Playwright E2E | ✅ Merged to main |
+| Sprint 4 | Railway/Vercel deploy config, sessions endpoint, tag_type filter, /about + /accessibility + /tags pages, dashboard session dropdown + filter chips | ✅ Merged to main (PRs #12–#16) |
 
 ## **6\. Architecture**
 
@@ -72,7 +73,7 @@ LegiScan API → backend/worker/ → Neon Postgres → backend/app/ (FastAPI) �
 - `backend/app/models/` — SQLAlchemy ORM: Bill, ISTScore, FrictionTag, SimilarityMatch
 - `backend/worker/tasks/evidence.py` — snippet extraction worker; ghost state when source text unavailable
 - `backend/worker/tasks/ingest.py` — LegiScan dataset sync, MinHash computation
-- `backend/tests/` — 58 pytest-asyncio tests, all using `dependency_overrides` (not patch)
+- `backend/tests/` — 70 pytest-asyncio tests, all using `dependency_overrides` (not patch)
 
 **Design decisions to remember:**
 - `GhostMessage` is synthesized by the router at read time — never stored in DB. `snippet_status == "source_verified_text_missing"` + `matched_snippets IS NULL` → ghost response.
@@ -81,21 +82,27 @@ LegiScan API → backend/worker/ → Neon Postgres → backend/app/ (FastAPI) �
 - `db.execute()` is async; `.scalars()`, `.scalar()`, `.all()`, `scalar_one_or_none()` are sync.
 - `list_bills` and `search_bills` outerjoin `ISTScore` so `copycat_alert` propagates to list views.
 
-### Frontend (Sprint 3)
+### Frontend (Sprints 3 + 4)
 
 **Key files:**
-- `frontend/app/page.tsx` — dashboard with stats grid, bill list, debounced search
+- `frontend/app/page.tsx` — dashboard: stats grid, debounced search, SessionDropdown, FilterChips, bill list with `aria-live`; filter state in URL params only
 - `frontend/app/bills/[id]/page.tsx` — bill detail: IST gauge, friction tags, match cards
-- `frontend/components/` — ISTScoreGauge, MatchCard, SnippetDiff, GhostAlert, TagBadge, CopyButton, SearchInput
-- `frontend/lib/api.ts` — typed fetch client, `NEXT_PUBLIC_API_URL` base
-- `frontend/lib/types.ts` — TypeScript interfaces mirroring Pydantic schemas
-- `frontend/e2e/` — 16 Playwright scenarios (dashboard + bill detail)
-- `frontend/__tests__/` — 42 jest-axe unit tests, one per component
+- `frontend/app/about/page.tsx` — methodology page with ShingleDiagram SVG
+- `frontend/app/accessibility/page.tsx` — WCAG 2.1 AA accessibility statement
+- `frontend/app/tags/page.tsx` — friction tag browser; each tag card links to `/?tag_type=<slug>`
+- `frontend/components/` — ISTScoreGauge, MatchCard, SnippetDiff, GhostAlert, TagBadge, CopyButton, SearchInput, PendingBanner, SessionDropdown, FilterChips, ShingleDiagram, BillHeader, BillSidebar, ProgressBar, Providers
+- `frontend/lib/api.ts` — typed fetch client, `NEXT_PUBLIC_API_URL` base; exports `bills()`, `searchBills()`, `tags()`, `sessions()`, `stats()`
+- `frontend/lib/types.ts` — TypeScript interfaces mirroring Pydantic schemas; includes `TagCount`
+- `frontend/e2e/` — 5 spec files (dashboard, bill-detail, about, tags, filters); Playwright + @axe-core/playwright
+- `frontend/__tests__/` — 81 jest-axe unit tests across 17 test files
 
 **Design decisions to remember:**
 - `MatchCard` renders ghost/pending/verified states by inspecting `snippet_status`, not `matched_snippets` contents.
 - Error boundaries use Next.js 16 `unstable_retry` (not `reset`). `global-error.tsx` must include `<html>/<body>` tags.
 - `SearchInput` uses `isFirstRender` ref to prevent mount-time router push.
 - Playwright `webServer`: `npm run build && npm run start` locally; `npm run start` in CI (build step precedes E2E step).
+- `FilterChips` is hidden when search is active (`q.length >= 2`) — search bypasses session/tag_type filters in the API, so showing stale chips would misrepresent result state.
+- `updateParam()` in dashboard preserves all existing URL params when adding/removing individual filters.
+- Bills list uses `<ul aria-live="polite">` wrapping both the list and empty/loading states so filter transitions announce to screen readers.
 
 Always invoke the using-superpowers skill at the start of a session.
