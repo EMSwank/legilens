@@ -1,30 +1,67 @@
 "use client";
 import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import TagBadge from "@/components/TagBadge";
 import SearchInput from "@/components/SearchInput";
 import PendingBanner from "@/components/PendingBanner";
+import SessionDropdown from "@/components/SessionDropdown";
+import FilterChips from "@/components/FilterChips";
+
+const TAG_LABELS: Record<string, string> = {
+  source_cloned: "Source-Cloned",
+  technical_conflict: "Technical Conflict",
+  regressive_burden: "Regressive Burden",
+  expert_defiance: "Expert Defiance",
+  spatial_inconsistency: "Spatial Inconsistency",
+  legal_hallucination: "Legal Hallucination",
+};
 
 function DashboardContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const q = searchParams.get("q") ?? "";
+  const session = searchParams.get("session");
+  const tagType = searchParams.get("tag_type");
 
   const { data: stats, isError: statsError } = useQuery({
     queryKey: ["stats"],
     queryFn: api.stats,
   });
 
+  const { data: sessions } = useQuery({
+    queryKey: ["sessions"],
+    queryFn: api.sessions,
+  });
+
+  const billsKey = q.length >= 2
+    ? ["bills", "search", q]
+    : ["bills", { session, tagType }];
+
   const {
     data: bills,
     isPending: billsPending,
     isError: billsError,
   } = useQuery({
-    queryKey: q.length >= 2 ? ["bills", "search", q] : ["bills"],
-    queryFn: () => (q.length >= 2 ? api.searchBills(q) : api.bills()),
+    queryKey: billsKey,
+    queryFn: () => {
+      if (q.length >= 2) return api.searchBills(q);
+      return api.bills({
+        session: session ?? undefined,
+        tag_type: tagType ?? undefined,
+      });
+    },
   });
+
+  function updateParam(key: string, value: string | null) {
+    const params = new URLSearchParams(Array.from(searchParams.entries()));
+    if (value === null || value === "") params.delete(key);
+    else params.set(key, value);
+    const qs = params.toString();
+    router.push(qs ? `/?${qs}` : "/");
+  }
 
   return (
     <main id="main" className="mx-auto max-w-5xl px-4 py-12 space-y-10">
@@ -62,9 +99,22 @@ function DashboardContent() {
 
       <section>
         <h2 className="mb-4 text-lg font-bold text-slate-200">Bills</h2>
-        <div className="mb-4">
+        <div className="mb-4 flex flex-wrap items-center gap-4">
           <SearchInput />
+          <SessionDropdown
+            sessions={sessions ?? []}
+            current={session}
+            onChange={(value) => updateParam("session", value)}
+          />
         </div>
+
+        <FilterChips
+          session={session}
+          tagType={tagType}
+          tagLabels={TAG_LABELS}
+          onRemoveSession={() => updateParam("session", null)}
+          onRemoveTag={() => updateParam("tag_type", null)}
+        />
 
         {billsError && (
           <div
@@ -78,10 +128,10 @@ function DashboardContent() {
         {billsPending && <PendingBanner />}
 
         {!billsPending && !billsError && bills?.length === 0 && (
-          <p className="text-slate-400">No bills match your search.</p>
+          <p className="text-slate-400">No bills match the current filters.</p>
         )}
 
-        <div className="space-y-2">
+        <div className="space-y-2 mt-4">
           {bills?.map((bill) => (
             <Link
               key={bill.id}
