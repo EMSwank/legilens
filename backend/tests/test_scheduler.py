@@ -86,22 +86,36 @@ async def test_run_full_pipeline_aborts_on_ingest_failure():
     ), patch.object(scheduler, "match_co_bills", AsyncMock()) as match_mock, patch.object(
         scheduler, "extract_all_pending_evidence", AsyncMock()
     ) as evidence_mock:
-        await scheduler.run_full_pipeline()
+        result = await scheduler.run_full_pipeline()
 
+    assert result is False
     match_mock.assert_not_called()
     evidence_mock.assert_not_called()
 
 
-async def test_bootstrap_pipeline_marks_then_runs():
+async def test_bootstrap_pipeline_runs_then_marks_on_success():
     from worker import scheduler
 
     order = []
     mark = AsyncMock(side_effect=lambda: order.append("mark"))
-    run = AsyncMock(side_effect=lambda: order.append("run"))
+    run = AsyncMock(return_value=True, side_effect=lambda: order.append("run") or True)
 
     with patch.object(scheduler, "_mark_bootstrap_ran", mark), patch.object(
         scheduler, "run_full_pipeline", run
     ):
         await scheduler._bootstrap_pipeline()
 
-    assert order == ["mark", "run"]
+    assert order == ["run", "mark"]
+
+
+async def test_bootstrap_pipeline_skips_mark_on_failure():
+    from worker import scheduler
+
+    mark = AsyncMock()
+
+    with patch.object(scheduler, "run_full_pipeline", AsyncMock(return_value=False)), patch.object(
+        scheduler, "_mark_bootstrap_ran", mark
+    ):
+        await scheduler._bootstrap_pipeline()
+
+    mark.assert_not_called()

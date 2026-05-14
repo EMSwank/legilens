@@ -20,26 +20,27 @@ BOOTSTRAP_DEBOUNCE_KEY = "worker:bootstrap:last_run"
 BOOTSTRAP_DEBOUNCE_TTL = 3600
 
 
-async def run_full_pipeline() -> None:
+async def run_full_pipeline() -> bool:
     logger.info("Pipeline start: ingesting all states")
     try:
         await ingest_all_states()
     except Exception:  # pylint: disable=broad-exception-caught
         logger.exception("Ingest phase failed; aborting pipeline run")
-        return
+        return False
     logger.info("Ingestion complete. Running match phase.")
     try:
         await match_co_bills()
     except Exception:  # pylint: disable=broad-exception-caught
         logger.exception("Match phase failed; aborting pipeline run")
-        return
+        return False
     logger.info("Match phase complete. Extracting evidence.")
     try:
         await extract_all_pending_evidence()
     except Exception:  # pylint: disable=broad-exception-caught
         logger.exception("Evidence phase failed")
-        return
+        return False
     logger.info("Pipeline complete.")
+    return True
 
 
 async def _db_is_empty() -> bool:
@@ -65,8 +66,8 @@ async def _mark_bootstrap_ran() -> None:
 
 
 async def _bootstrap_pipeline() -> None:
-    await _mark_bootstrap_ran()
-    await run_full_pipeline()
+    if await run_full_pipeline():
+        await _mark_bootstrap_ran()
 
 
 async def _bootstrap_if_empty(scheduler: AsyncIOScheduler) -> None:
