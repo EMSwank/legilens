@@ -11,7 +11,7 @@ class LegiScanClient:
         """Returns all sessions with their change hashes. One call covers all 50 states."""
         resp = await self._http.get("/", params={"key": self.api_key, "op": "getDatasetList"})
         resp.raise_for_status()
-        return (await resp.json()).get("datasetlist", [])
+        return resp.json().get("datasetlist", [])
 
     async def get_dataset(self, access_key: str) -> bytes:
         """Downloads a full session dataset as a zip. Called only when dataset_hash changed."""
@@ -23,7 +23,7 @@ class LegiScanClient:
         """Fetches individual bill text. Phase 3 Pro API calls only — not used in Phase 1."""
         resp = await self._http.get("/", params={"key": self.api_key, "op": "getBill", "id": bill_id})
         resp.raise_for_status()
-        texts = (await resp.json()).get("bill", {}).get("texts", [])
+        texts = resp.json().get("bill", {}).get("texts", [])
         if not texts:
             return None
         return texts[-1].get("doc")

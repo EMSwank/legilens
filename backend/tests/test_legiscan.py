@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from app.services.legiscan import LegiScanClient
 
 @pytest.fixture
@@ -17,7 +17,7 @@ async def test_get_dataset_list_returns_sessions(client):
         ]
     }
     with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
-        mock_get.return_value.json = AsyncMock(return_value=mock_response)
+        mock_get.return_value.json = MagicMock(return_value=mock_response)
         mock_get.return_value.raise_for_status = lambda: None
         result = await client.get_dataset_list()
     assert len(result) == 2
@@ -27,7 +27,7 @@ async def test_get_dataset_list_returns_sessions(client):
 async def test_get_dataset_list_returns_empty_on_missing_key(client):
     mock_response = {"status": "OK"}
     with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
-        mock_get.return_value.json = AsyncMock(return_value=mock_response)
+        mock_get.return_value.json = MagicMock(return_value=mock_response)
         mock_get.return_value.raise_for_status = lambda: None
         result = await client.get_dataset_list()
     assert result == []
@@ -43,7 +43,7 @@ async def test_get_dataset_returns_bytes(client):
 async def test_get_bill_text_returns_text(client):
     mock_response = {"status": "OK", "bill": {"texts": [{"doc": "The bill text here."}]}}
     with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
-        mock_get.return_value.json = AsyncMock(return_value=mock_response)
+        mock_get.return_value.json = MagicMock(return_value=mock_response)
         mock_get.return_value.raise_for_status = lambda: None
         result = await client.get_bill_text(12345)
     assert result == "The bill text here."
@@ -51,7 +51,7 @@ async def test_get_bill_text_returns_text(client):
 async def test_get_bill_text_returns_none_when_no_texts(client):
     mock_response = {"status": "OK", "bill": {"texts": []}}
     with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
-        mock_get.return_value.json = AsyncMock(return_value=mock_response)
+        mock_get.return_value.json = MagicMock(return_value=mock_response)
         mock_get.return_value.raise_for_status = lambda: None
         result = await client.get_bill_text(99)
     assert result is None
@@ -59,7 +59,7 @@ async def test_get_bill_text_returns_none_when_no_texts(client):
 async def test_get_bill_text_returns_none_when_doc_is_none(client):
     mock_response = {"status": "OK", "bill": {"texts": [{"doc": None}]}}
     with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
-        mock_get.return_value.json = AsyncMock(return_value=mock_response)
+        mock_get.return_value.json = MagicMock(return_value=mock_response)
         mock_get.return_value.raise_for_status = lambda: None
         result = await client.get_bill_text(12345)
     assert result is None
