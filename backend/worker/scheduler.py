@@ -24,19 +24,19 @@ async def run_full_pipeline() -> None:
     logger.info("Pipeline start: ingesting all states")
     try:
         await ingest_all_states()
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         logger.exception("Ingest phase failed; aborting pipeline run")
         return
     logger.info("Ingestion complete. Running match phase.")
     try:
         await match_co_bills()
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         logger.exception("Match phase failed; aborting pipeline run")
         return
     logger.info("Match phase complete. Extracting evidence.")
     try:
         await extract_all_pending_evidence()
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         logger.exception("Evidence phase failed")
         return
     logger.info("Pipeline complete.")
