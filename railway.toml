@@ -1,5 +1,5 @@
 [build]
-buildCommand = "pip install -r backend/requirements.txt"
+buildCommand = "python -m pip install -r backend/requirements.txt"
 
 [deploy]
 restartPolicyType = "ON_FAILURE"
