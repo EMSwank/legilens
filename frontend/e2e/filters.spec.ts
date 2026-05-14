@@ -8,6 +8,7 @@ test("user can navigate tags → dashboard filtered → dismiss chip", async ({ 
     test.skip(true, "no tags seeded; skip filter journey");
   }
   const href = await firstCard.getAttribute("href");
+  expect(href).toMatch(/^\/\?tag_type=/);
   await firstCard.click();
   await expect(page).toHaveURL(/tag_type=/);
 

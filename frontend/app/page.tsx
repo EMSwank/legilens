@@ -131,21 +131,22 @@ function DashboardContent() {
           <p className="text-slate-400">No bills match the current filters.</p>
         )}
 
-        <div className="space-y-2 mt-4">
+        <ul className="space-y-2 mt-4" aria-live="polite" aria-label="Bills list">
           {bills?.map((bill) => (
-            <Link
-              key={bill.id}
-              href={`/bills/${bill.id}`}
-              className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-800/50 px-4 py-3 hover:border-slate-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
-            >
-              <div>
-                <span className="font-mono text-sm text-slate-400">{bill.bill_number}</span>
-                <p className="font-medium text-slate-200">{bill.title}</p>
-              </div>
-              {bill.copycat_alert && <TagBadge type="source_cloned" />}
-            </Link>
+            <li key={bill.id}>
+              <Link
+                href={`/bills/${bill.id}`}
+                className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-800/50 px-4 py-3 hover:border-slate-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+              >
+                <div>
+                  <span className="font-mono text-sm text-slate-400">{bill.bill_number}</span>
+                  <p className="font-medium text-slate-200">{bill.title}</p>
+                </div>
+                {bill.copycat_alert && <TagBadge type="source_cloned" />}
+              </Link>
+            </li>
           ))}
-        </div>
+        </ul>
       </section>
     </main>
   );

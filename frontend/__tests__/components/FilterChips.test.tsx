@@ -1,4 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { axe } from "jest-axe";
 import FilterChips from "@/components/FilterChips";
 
@@ -90,7 +91,8 @@ test("Clicking tag chip × calls onRemoveTag only", () => {
   expect(onRemoveSession).not.toHaveBeenCalled();
 });
 
-test("FilterChips chip × is keyboard accessible (Enter dismisses)", () => {
+test("FilterChips chip × is keyboard accessible (Enter dismisses)", async () => {
+  const user = userEvent.setup();
   const onRemoveTag = jest.fn();
   render(
     <FilterChips
@@ -103,9 +105,8 @@ test("FilterChips chip × is keyboard accessible (Enter dismisses)", () => {
   );
   const btn = screen.getByRole("button", { name: /remove tag filter/i });
   btn.focus();
-  fireEvent.keyDown(btn, { key: "Enter" });
-  fireEvent.click(btn);
-  expect(onRemoveTag).toHaveBeenCalled();
+  await user.keyboard("{Enter}");
+  expect(onRemoveTag).toHaveBeenCalledTimes(1);
 });
 
 test("FilterChips has no axe violations with two chips", async () => {
