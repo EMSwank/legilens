@@ -27,9 +27,15 @@ def do_run_migrations(connection):
     with context.begin_transaction():
         context.run_migrations()
 
+def _asyncpg_url(url: str) -> str:
+    for prefix in ("postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+asyncpg://" + url[len(prefix):]
+    return url
+
 async def run_async_migrations():
     connectable = async_engine_from_config(
-        {"sqlalchemy.url": settings.database_url},
+        {"sqlalchemy.url": _asyncpg_url(settings.database_url)},
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
