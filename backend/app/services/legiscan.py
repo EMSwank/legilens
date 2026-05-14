@@ -17,6 +17,8 @@ class LegiScanClient:
         """Downloads a full session dataset as a zip. Called only when dataset_hash changed."""
         resp = await self._http.get("/", params={"key": self.api_key, "op": "getDataset", "access_key": access_key})
         resp.raise_for_status()
+        if not resp.content.startswith(b"PK"):
+            raise ValueError(f"getDataset returned non-zip response: {resp.content[:200]!r}")
         return resp.content
 
     async def get_bill_text(self, bill_id: int) -> str | None:

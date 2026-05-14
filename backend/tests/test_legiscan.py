@@ -40,6 +40,15 @@ async def test_get_dataset_returns_bytes(client):
         result = await client.get_dataset("abc123")
     assert result == fake_zip
 
+
+async def test_get_dataset_raises_on_non_zip_response(client):
+    json_error = b'{"status":"ERROR","alert":{"message":"Invalid API key"}}'
+    with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value.content = json_error
+        mock_get.return_value.raise_for_status = lambda: None
+        with pytest.raises(ValueError, match="non-zip"):
+            await client.get_dataset("abc123")
+
 async def test_get_bill_text_returns_text(client):
     mock_response = {"status": "OK", "bill": {"texts": [{"doc": "The bill text here."}]}}
     with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:

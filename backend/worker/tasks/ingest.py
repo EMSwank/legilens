@@ -2,6 +2,7 @@ import base64
 import binascii
 import io
 import json
+import logging
 import zipfile
 from sqlalchemy import select
 from app.database import async_session
@@ -11,6 +12,8 @@ from app.services.legiscan import LegiScanClient
 from app.services.minhash import compute_minhash
 from app.services.redis_cache import RedisCache
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 async def ingest_all_states():
@@ -22,17 +25,21 @@ async def ingest_all_states():
             for ds in datasets:
                 session_id = ds["session_id"]
                 current_hash = ds["dataset_hash"]
+                state = ds["state"]
 
                 stored_hash = await cache.get_dataset_hash(session_id)
                 if stored_hash == current_hash:
                     continue
 
-                zip_bytes = await client.get_dataset(ds["access_key"])
-                bills = _parse_dataset_zip(zip_bytes)
-                for bill in bills:
-                    await _process_bill(session, cache, bill, ds["state"])
-
-                await cache.set_dataset_hash(session_id, current_hash)
+                try:
+                    zip_bytes = await client.get_dataset(ds["access_key"])
+                    bills = _parse_dataset_zip(zip_bytes)
+                    for bill in bills:
+                        await _process_bill(session, cache, bill, state)
+                    await cache.set_dataset_hash(session_id, current_hash)
+                except Exception:  # pylint: disable=broad-exception-caught
+                    logger.exception("Failed to ingest dataset session_id=%s state=%s - skipping", session_id, state)
+                    await session.rollback()
     finally:
         await client.close()
         await cache.close()
