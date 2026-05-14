@@ -64,6 +64,14 @@ MVP is under active development.
 | Sprint 1 | Data ingestion, MinHash pipeline, nightly worker | ✅ Complete |
 | Sprint 2 | FastAPI endpoints, Pydantic schemas, rate limiting | ✅ Complete |
 | Sprint 3 | Next.js frontend, WCAG 2.1 AA, Playwright E2E | ✅ Complete |
+| Sprint 4 | Deployment (Railway + Vercel), /about, /tags, /accessibility, filter chips | ✅ Complete |
+
+### Sprint 4 — what shipped
+
+- Backend: `GET /bills/sessions` (distinct CO sessions), `tag_type` filter on `GET /bills`, CORS regex for Vercel previews
+- Frontend: `/about` methodology page with MinHash proof-of-work (shingling SVG, Jaccard formula), `/tags` browser with counts and descriptions, `/accessibility` statement, dashboard session dropdown, dismissible filter chips
+- Deployment: Railway (web + worker services), Vercel (production + preview deploys), alembic migrations folded into web service start
+- A11y: `@axe-core/playwright` added to E2E, `frontend/A11Y_CHECKLIST.md` enforces per-PR manual checks
 
 ### Sprint 3 — what shipped
 
