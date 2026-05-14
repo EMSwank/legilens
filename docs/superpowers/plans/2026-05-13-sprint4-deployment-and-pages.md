@@ -2,16 +2,16 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status (as of 2026-05-13):**
+**Status (as of 2026-05-14):**
 | Phase | Description | Status |
 |-------|-------------|--------|
 | 1 | Deploy config (Procfile, railway.toml, CORS) | ✅ Merged (#12) |
 | 2 | Backend additions (sessions endpoint, tag_type filter) | ✅ Merged (#12) |
 | 3 | Frontend foundation (types, api client, axe helper, A11Y checklist) | ✅ Merged (#13) |
 | 4 | `/about` + `/accessibility` pages | ✅ Merged (#13) |
-| 5 | `/tags` page | 🔲 Not started — branch: `feat/tags-page` |
-| 6 | Dashboard filter chips + session dropdown | 🔲 Not started — branch: `feat/dashboard-filter-chips` |
-| 7 | Railway + Vercel deploy (manual) | 🔲 Blocked on Phase 6 |
+| 5 | `/tags` page | ✅ Merged (#15) |
+| 6 | Dashboard filter chips + session dropdown | ✅ Merged (#16) |
+| 7 | Railway + Vercel deploy (manual) | 🔲 Not started |
 
 **Goal:** Deploy LegiLens to Railway (backend, two services) + Vercel (frontend), add two backend endpoints (`GET /bills/sessions` and a `tag_type` filter on `GET /bills`), and build three missing frontend pages (`/about`, `/tags`, `/accessibility`) plus dashboard filter chips and session dropdown.
 
@@ -1512,7 +1512,7 @@ git checkout main && git pull
 - Create: `frontend/app/tags/page.tsx`
 - Create: `frontend/__tests__/pages/Tags.test.tsx`
 
-- [ ] **Step 1: Create branch + write failing tests**
+- [x] **Step 1: Create branch + write failing tests**
 
 ```bash
 git checkout -b feat/tags-page
@@ -1598,7 +1598,7 @@ test("Tags page shows empty state when API returns empty list", async () => {
 });
 ```
 
-- [ ] **Step 2: Run to confirm failures**
+- [x] **Step 2: Run to confirm failures**
 
 ```bash
 cd frontend && npm test -- --testPathPattern=Tags
@@ -1606,7 +1606,7 @@ cd frontend && npm test -- --testPathPattern=Tags
 
 Expected: all fail.
 
-- [ ] **Step 3: Implement the page**
+- [x] **Step 3: Implement the page**
 
 ```typescript
 "use client";
@@ -1702,7 +1702,7 @@ export default function Tags() {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 cd frontend && npm test -- --testPathPattern=Tags
@@ -1710,7 +1710,7 @@ cd frontend && npm test -- --testPathPattern=Tags
 
 Expected: all 6 pass.
 
-- [ ] **Step 5: Manual a11y verification + commit**
+- [x] **Step 5: Manual a11y verification + commit**
 
 ```bash
 git add frontend/app/tags/page.tsx frontend/__tests__/pages/Tags.test.tsx
@@ -1722,7 +1722,7 @@ git commit -m "feat(frontend): /tags browser with loading/error/empty states"
 **Files:**
 - Create: `frontend/e2e/tags.spec.ts`
 
-- [ ] **Step 1: Write the E2E spec**
+- [x] **Step 1: Write the E2E spec**
 
 ```typescript
 import { test, expect } from "@playwright/test";
@@ -1741,7 +1741,7 @@ test("tags page lists tags and links to filtered dashboard", async ({ page }) =>
 });
 ```
 
-- [ ] **Step 2: Run locally**
+- [x] **Step 2: Run locally**
 
 ```bash
 cd frontend && npm run build && npm run e2e -- --grep "tags page"
@@ -1749,7 +1749,7 @@ cd frontend && npm run build && npm run e2e -- --grep "tags page"
 
 Expected: passes (assumes seeded DB returns at least one tag; if local DB is empty, skip until Phase 6 chip flow exercises it instead).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/e2e/tags.spec.ts
@@ -1758,7 +1758,7 @@ git commit -m "test(e2e): tags page navigates to filtered dashboard"
 
 ### Task 5.3: Open PR for `/tags`
 
-- [ ] **Step 1: Push + PR**
+- [x] **Step 1: Push + PR**
 
 ```bash
 git push -u origin feat/tags-page
@@ -1775,15 +1775,15 @@ gh pr create --title "feat(frontend): /tags browser page" --body "$(cat <<'EOF'
 - [x] Description text supplements (not replaces) tag name (color-not-only)
 
 ## Test plan
-- [ ] `npm test -- --testPathPattern=Tags` — 6 tests
-- [ ] `npm run e2e -- --grep "tags page"` — 1 test
+- [x] `npm test -- --testPathPattern=Tags` — 6 tests
+- [x] `npm run e2e -- --grep "tags page"` — 1 test
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
 )"
 ```
 
-- [ ] **Step 2: Merge after CI**
+- [x] **Step 2: Merge after CI**
 
 ```bash
 gh pr merge --squash
@@ -1800,7 +1800,7 @@ git checkout main && git pull
 - Create: `frontend/components/SessionDropdown.tsx`
 - Create: `frontend/__tests__/components/SessionDropdown.test.tsx`
 
-- [ ] **Step 1: Create branch + write failing tests**
+- [x] **Step 1: Create branch + write failing tests**
 
 ```bash
 git checkout -b feat/dashboard-filter-chips
@@ -1862,7 +1862,7 @@ test("SessionDropdown reflects current selection", () => {
 });
 ```
 
-- [ ] **Step 2: Confirm failures**
+- [x] **Step 2: Confirm failures**
 
 ```bash
 cd frontend && npm test -- --testPathPattern=SessionDropdown
@@ -1870,7 +1870,7 @@ cd frontend && npm test -- --testPathPattern=SessionDropdown
 
 Expected: fail.
 
-- [ ] **Step 3: Implement the component**
+- [x] **Step 3: Implement the component**
 
 ```typescript
 "use client";
@@ -1904,7 +1904,7 @@ export default function SessionDropdown({
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 cd frontend && npm test -- --testPathPattern=SessionDropdown
@@ -1912,7 +1912,7 @@ cd frontend && npm test -- --testPathPattern=SessionDropdown
 
 Expected: 5 pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/components/SessionDropdown.tsx frontend/__tests__/components/SessionDropdown.test.tsx
@@ -1925,7 +1925,7 @@ git commit -m "feat(frontend): SessionDropdown native select with accessible lab
 - Create: `frontend/components/FilterChips.tsx`
 - Create: `frontend/__tests__/components/FilterChips.test.tsx`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `frontend/__tests__/components/FilterChips.test.tsx`:
 
@@ -2054,7 +2054,7 @@ test("FilterChips has no axe violations with two chips", async () => {
 });
 ```
 
-- [ ] **Step 2: Run to confirm failures**
+- [x] **Step 2: Run to confirm failures**
 
 ```bash
 cd frontend && npm test -- --testPathPattern=FilterChips
@@ -2062,7 +2062,7 @@ cd frontend && npm test -- --testPathPattern=FilterChips
 
 Expected: all fail.
 
-- [ ] **Step 3: Implement the component**
+- [x] **Step 3: Implement the component**
 
 ```typescript
 "use client";
@@ -2119,7 +2119,7 @@ export default function FilterChips({
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 cd frontend && npm test -- --testPathPattern=FilterChips
@@ -2127,7 +2127,7 @@ cd frontend && npm test -- --testPathPattern=FilterChips
 
 Expected: 8 pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/components/FilterChips.tsx frontend/__tests__/components/FilterChips.test.tsx
@@ -2139,7 +2139,7 @@ git commit -m "feat(frontend): FilterChips dismissible chip row for active filte
 **Files:**
 - Modify: `frontend/app/page.tsx`
 
-- [ ] **Step 1: Read the current dashboard**
+- [x] **Step 1: Read the current dashboard**
 
 ```bash
 cd frontend && cat app/page.tsx
@@ -2147,7 +2147,7 @@ cd frontend && cat app/page.tsx
 
 Familiarize yourself with the existing structure (`useSearchParams`, `useQuery` for `stats` + `bills`, `SearchInput`, debounced search).
 
-- [ ] **Step 2: Rewrite `app/page.tsx` to integrate the new filters**
+- [x] **Step 2: Rewrite `app/page.tsx` to integrate the new filters**
 
 Replace the existing file with:
 
@@ -2298,7 +2298,7 @@ export default function Page() {
 }
 ```
 
-- [ ] **Step 3: Run all frontend unit tests to confirm no regression**
+- [x] **Step 3: Run all frontend unit tests to confirm no regression**
 
 ```bash
 cd frontend && npm test
@@ -2306,7 +2306,7 @@ cd frontend && npm test
 
 Expected: full suite green (existing dashboard tests still pass — the file changed structurally but selectors should still match).
 
-- [ ] **Step 4: Smoke test in browser**
+- [x] **Step 4: Smoke test in browser**
 
 ```bash
 cd frontend && npm run dev
@@ -2320,7 +2320,7 @@ Open `http://localhost:3000`. Verify:
 - Clicking × on the session chip clears session but keeps tag_type
 - Tab through every interactive element; focus visible
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/app/page.tsx
@@ -2332,7 +2332,7 @@ git commit -m "feat(frontend): wire SessionDropdown + FilterChips into dashboard
 **Files:**
 - Create: `frontend/e2e/filters.spec.ts`
 
-- [ ] **Step 1: Write the E2E spec**
+- [x] **Step 1: Write the E2E spec**
 
 ```typescript
 import { test, expect } from "@playwright/test";
@@ -2391,7 +2391,7 @@ test("filter chips meet 44px touch target on mobile viewport", async ({ page }) 
 });
 ```
 
-- [ ] **Step 2: Run E2E locally**
+- [x] **Step 2: Run E2E locally**
 
 ```bash
 cd frontend && npm run build && npm run e2e -- --grep "filter"
@@ -2399,7 +2399,7 @@ cd frontend && npm run build && npm run e2e -- --grep "filter"
 
 Expected: 4 pass (3rd may skip if local DB has no sessions).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/e2e/filters.spec.ts
@@ -2408,7 +2408,7 @@ git commit -m "test(e2e): full filter journey + deep-link + mobile touch target"
 
 ### Task 6.5: Open PR for dashboard filter additions
 
-- [ ] **Step 1: Push + PR**
+- [x] **Step 1: Push + PR**
 
 ```bash
 git push -u origin feat/dashboard-filter-chips
@@ -2428,16 +2428,16 @@ gh pr create --title "feat(frontend): dashboard session dropdown + dismissible f
 - [x] 320px viewport: chips wrap, touch target ≥ 24×24 px
 
 ## Test plan
-- [ ] `npm test -- --testPathPattern="SessionDropdown|FilterChips"` — 13 tests
-- [ ] `npm run e2e -- --grep "filter"` — 4 tests
-- [ ] Full unit suite green: `npm test`
+- [x] `npm test -- --testPathPattern="SessionDropdown|FilterChips"` — 13 tests
+- [x] `npm run e2e -- --grep "filter"` — 4 tests
+- [x] Full unit suite green: `npm test`
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
 )"
 ```
 
-- [ ] **Step 2: Wait for CI green, merge**
+- [x] **Step 2: Wait for CI green, merge**
 
 ```bash
 gh pr merge --squash
