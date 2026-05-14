@@ -23,16 +23,17 @@ async def ingest_all_states():
         datasets = await client.get_dataset_list()
         async with async_session() as session:
             for ds in datasets:
-                session_id = ds["session_id"]
-                current_hash = ds["dataset_hash"]
-                state = ds["state"]
-
-                stored_hash = await cache.get_dataset_hash(session_id)
-                if stored_hash == current_hash:
-                    continue
-
+                session_id = ds.get("session_id")
+                state = ds.get("state", "?")
                 try:
-                    zip_bytes = await client.get_dataset(ds["access_key"])
+                    current_hash = ds["dataset_hash"]
+                    access_key = ds["access_key"]
+
+                    stored_hash = await cache.get_dataset_hash(session_id)
+                    if stored_hash == current_hash:
+                        continue
+
+                    zip_bytes = await client.get_dataset(access_key)
                     bills = _parse_dataset_zip(zip_bytes)
                     for bill in bills:
                         await _process_bill(session, cache, bill, state)
