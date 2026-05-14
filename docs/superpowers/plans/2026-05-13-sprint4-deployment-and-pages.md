@@ -11,7 +11,7 @@
 | 4 | `/about` + `/accessibility` pages | ✅ Merged (#13) |
 | 5 | `/tags` page | ✅ Merged (#15) |
 | 6 | Dashboard filter chips + session dropdown | ✅ Merged (#16) |
-| 7 | Railway + Vercel deploy (manual) | 🔲 Not started |
+| 7 | Railway + Vercel deploy (manual) | 🔄 In progress (Railway ✅, Vercel env var fix pending) |
 
 **Goal:** Deploy LegiLens to Railway (backend, two services) + Vercel (frontend), add two backend endpoints (`GET /bills/sessions` and a `tag_type` filter on `GET /bills`), and build three missing frontend pages (`/about`, `/tags`, `/accessibility`) plus dashboard filter chips and session dropdown.
 
@@ -2450,21 +2450,21 @@ git checkout main && git pull
 
 These steps are run with the user. The plan documents the sequence; agent assists with exact commands and verification.
 
-### Task 7.1: Verify Railway plan + create web service
+### Task 7.1: Verify Railway plan + create web service ✅
 
-- [ ] **Step 1:** User confirms they're on Railway Hobby plan ($5/mo) — required to keep two services running 24/7
-- [ ] **Step 2:** In Railway dashboard, create a new project → "Deploy from GitHub repo" → select `EMSwank/legilens`
-- [ ] **Step 3:** First service auto-creates. Rename to `legilens-web`. In Settings:
+- [x] **Step 1:** User confirms they're on Railway Hobby plan ($5/mo) — required to keep two services running 24/7
+- [x] **Step 2:** In Railway dashboard, create a new project → "Deploy from GitHub repo" → select `EMSwank/legilens`
+- [x] **Step 3:** First service auto-creates. Rename to `legilens-web`. In Settings:
   - Root directory: `/` (Procfile handles `cd backend`)
   - Start command (override): `cd backend && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-- [ ] **Step 4:** Set environment variables on `legilens-web`:
+- [x] **Step 4:** Set environment variables on `legilens-web`:
   - `DATABASE_URL` = Neon Postgres connection string
   - `REDIS_URL` = Redis URL (Railway Redis add-on or existing)
   - `LEGISCAN_API_KEY` = LegiScan API key
   - `ALLOWED_ORIGINS` = `https://<vercel-prod-url>` (fill after Vercel deploy in Task 7.3 — leave `http://localhost:3000` for now)
   - `PYTHONPATH` = `.`
-- [ ] **Step 5:** Trigger deploy. Watch logs for `alembic upgrade head` success then `Uvicorn running on http://0.0.0.0:...`
-- [ ] **Step 6:** Capture Railway-generated public URL (e.g., `https://legilens-web-production.up.railway.app`)
+- [x] **Step 5:** Trigger deploy. Watch logs for `alembic upgrade head` success then `Uvicorn running on http://0.0.0.0:...`
+- [x] **Step 6:** Capture Railway-generated public URL (e.g., `https://legilens-web-production.up.railway.app`)
 - [ ] **Step 7:** Smoke test:
   ```bash
   curl https://<railway-web-url>/stats -H 'User-Agent: smoke-test'
@@ -2472,25 +2472,25 @@ These steps are run with the user. The plan documents the sequence; agent assist
   ```
   Both must return 200.
 
-### Task 7.2: Create worker service
+### Task 7.2: Create worker service ✅
 
-- [ ] **Step 1:** In the same Railway project, click "New" → "GitHub Repo" → same `legilens` repo
-- [ ] **Step 2:** Rename second service to `legilens-worker`. In Settings:
+- [x] **Step 1:** In the same Railway project, click "New" → "GitHub Repo" → same `legilens` repo
+- [x] **Step 2:** Rename second service to `legilens-worker`. In Settings:
   - Start command (override): `cd backend && python -m worker.scheduler`
-- [ ] **Step 3:** Copy the same env vars from `legilens-web` to `legilens-worker` (or use a Railway shared env group)
-- [ ] **Step 4:** Trigger deploy. Watch logs for `Scheduler started` line from APScheduler
+- [x] **Step 3:** Copy the same env vars from `legilens-web` to `legilens-worker` (or use a Railway shared env group)
+- [x] **Step 4:** Trigger deploy. Watch logs for `Scheduler started` line from APScheduler
 - [ ] **Step 5:** Confirm in Neon SQL editor that `alembic_version` table contains a row matching the latest revision in `backend/alembic/versions/`
 
 ### Task 7.3: Deploy to Vercel (new account walkthrough)
 
-- [ ] **Step 1:** User creates Vercel account at vercel.com using GitHub OAuth
-- [ ] **Step 2:** "Add New" → "Project" → import `EMSwank/legilens`
-- [ ] **Step 3:** In project settings:
+- [x] **Step 1:** User creates Vercel account at vercel.com using GitHub OAuth
+- [x] **Step 2:** "Add New" → "Project" → import `EMSwank/legilens`
+- [x] **Step 3:** In project settings:
   - Root Directory: `frontend`
   - Framework Preset: Next.js (auto-detected)
-- [ ] **Step 4:** Environment variable:
+- [ ] **Step 4:** Environment variable — **BLOCKED: `NEXT_PUBLIC_API_URL` was set after initial build; must redeploy to bake Railway URL into bundle. Frontend was hitting `localhost:8000` in production.**
   - `NEXT_PUBLIC_API_URL` = `https://<railway-web-url>` (from Task 7.1)
-- [ ] **Step 5:** Click Deploy. Wait for build (3–5 min)
+- [ ] **Step 5:** Click Deploy (redeploy after fixing env var). Wait for build (3–5 min)
 - [ ] **Step 6:** Capture Vercel production URL (e.g., `https://legilens.vercel.app`)
 - [ ] **Step 7:** Return to Railway `legilens-web` service → update `ALLOWED_ORIGINS` to include the Vercel production URL → redeploy (CORS regex already covers preview URLs)
 
