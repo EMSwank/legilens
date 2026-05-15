@@ -1,3 +1,6 @@
+import base64
+import binascii
+
 import httpx
 
 LEGISCAN_BASE = "https://api.legiscan.com/"
@@ -13,13 +16,30 @@ class LegiScanClient:
         resp.raise_for_status()
         return resp.json().get("datasetlist", [])
 
-    async def get_dataset(self, access_key: str) -> bytes:
-        """Downloads a full session dataset as a zip. Called only when dataset_hash changed."""
-        resp = await self._http.get("/", params={"key": self.api_key, "op": "getDataset", "access_key": access_key})
+    async def get_dataset(self, session_id: int, access_key: str) -> bytes:
+        """Downloads a full session dataset as a zip.
+
+        LegiScan getDataset requires both id (session_id) and access_key, and returns the zip
+        base64-encoded inside a JSON envelope: {"status":"OK","dataset":{"zip":"<base64>", ...}}.
+        """
+        resp = await self._http.get(
+            "/",
+            params={"key": self.api_key, "op": "getDataset", "id": session_id, "access_key": access_key},
+        )
         resp.raise_for_status()
-        if not resp.content.startswith(b"PK"):
-            raise ValueError(f"getDataset returned non-zip response: {resp.content[:200]!r}")
-        return resp.content
+        payload = resp.json()
+        if payload.get("status") != "OK":
+            raise ValueError(f"getDataset returned non-OK status: {payload!r}")
+        encoded = payload.get("dataset", {}).get("zip")
+        if not encoded:
+            raise ValueError(f"getDataset response missing dataset.zip: {payload!r}")
+        try:
+            zip_bytes = base64.b64decode(encoded)
+        except binascii.Error as exc:
+            raise ValueError(f"getDataset base64 decode failed: {exc}") from exc
+        if not zip_bytes.startswith(b"PK"):
+            raise ValueError(f"getDataset decoded bytes are not a zip: {zip_bytes[:200]!r}")
+        return zip_bytes
 
     async def get_bill_text(self, bill_id: int) -> str | None:
         """Fetches individual bill text. Phase 3 Pro API calls only — not used in Phase 1."""
