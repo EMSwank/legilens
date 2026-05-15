@@ -45,7 +45,7 @@ async def run_full_pipeline() -> bool:
 
 async def _db_is_empty() -> bool:
     async with async_session() as session:
-        result = await session.execute(select(Bill.id).limit(1))
+        result = await session.execute(select(Bill.id).where(Bill.is_corpus_only.is_(False)).limit(1))
         return result.scalar() is None
 
 
