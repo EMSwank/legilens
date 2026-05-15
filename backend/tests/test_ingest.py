@@ -128,10 +128,17 @@ async def test_ingest_skips_unchanged_dataset():
         {"session_id": 1, "state": "CO", "access_key": "abc", "dataset_hash": "same_hash"}
     ]
     mock_cache = AsyncMock()
-    mock_cache.get_dataset_hash.return_value = "same_hash"
+
+    hash_result = MagicMock()
+    hash_result.scalar.return_value = "same_hash"
+    mock_session = AsyncMock()
+    mock_session.execute.return_value = hash_result
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
 
     with patch("worker.tasks.ingest.LegiScanClient", return_value=mock_client), \
-         patch("worker.tasks.ingest.RedisCache", return_value=mock_cache):
+         patch("worker.tasks.ingest.RedisCache", return_value=mock_cache), \
+         patch("worker.tasks.ingest.async_session", return_value=mock_session):
         await ingest_all_states()
 
     mock_client.get_dataset.assert_not_called()
@@ -162,12 +169,14 @@ async def test_ingest_downloads_changed_dataset():
     mock_client.get_dataset.return_value = zip_bytes
 
     mock_cache = AsyncMock()
-    mock_cache.get_dataset_hash.return_value = "old_hash"
 
-    mock_result = MagicMock()
-    mock_result.scalar_one_or_none.return_value = None
+    hash_result = MagicMock()
+    hash_result.scalar.return_value = "old_hash"
+    bill_result = MagicMock()
+    bill_result.scalar_one_or_none.return_value = None
+    upsert_result = MagicMock()
     mock_session = AsyncMock()
-    mock_session.execute.return_value = mock_result
+    mock_session.execute.side_effect = [hash_result, bill_result, upsert_result]
     mock_session.add = MagicMock()
     mock_session.flush = AsyncMock()
     mock_session.commit = AsyncMock()
@@ -180,7 +189,7 @@ async def test_ingest_downloads_changed_dataset():
         await ingest_all_states()
 
     mock_client.get_dataset.assert_called_once_with(2, "xyz")
-    mock_cache.set_dataset_hash.assert_called_once_with(2, "new_hash")
+    assert mock_session.execute.call_count == 3
 
 
 async def test_ingest_continues_after_failed_dataset():
@@ -211,12 +220,16 @@ async def test_ingest_continues_after_failed_dataset():
     ]
 
     mock_cache = AsyncMock()
-    mock_cache.get_dataset_hash.return_value = None
 
-    mock_result = MagicMock()
-    mock_result.scalar_one_or_none.return_value = None
+    # Dataset 1 (TX): hash check only — get_dataset raises, rollback
+    # Dataset 2 (CO): hash check, bill lookup (no text), upsert
+    hash_miss = MagicMock()
+    hash_miss.scalar.return_value = None
+    bill_result = MagicMock()
+    bill_result.scalar_one_or_none.return_value = None
+    upsert_result = MagicMock()
     mock_session = AsyncMock()
-    mock_session.execute.return_value = mock_result
+    mock_session.execute.side_effect = [hash_miss, hash_miss, bill_result, upsert_result]
     mock_session.add = MagicMock()
     mock_session.flush = AsyncMock()
     mock_session.commit = AsyncMock()
@@ -230,7 +243,7 @@ async def test_ingest_continues_after_failed_dataset():
         await ingest_all_states()
 
     mock_session.rollback.assert_awaited_once()
-    mock_cache.set_dataset_hash.assert_called_once_with(2, "h2")
+    assert mock_session.execute.call_count == 4
 
 
 async def test_ingest_skips_dataset_with_missing_schema_keys():
@@ -258,12 +271,16 @@ async def test_ingest_skips_dataset_with_missing_schema_keys():
     mock_client.get_dataset.return_value = good_zip
 
     mock_cache = AsyncMock()
-    mock_cache.get_dataset_hash.return_value = None
 
-    mock_result = MagicMock()
-    mock_result.scalar_one_or_none.return_value = None
+    # Dataset 99: KeyError at ds["dataset_hash"] — no execute calls, rollback
+    # Dataset 2 (CO): hash check, bill lookup (no text), upsert
+    hash_miss = MagicMock()
+    hash_miss.scalar.return_value = None
+    bill_result = MagicMock()
+    bill_result.scalar_one_or_none.return_value = None
+    upsert_result = MagicMock()
     mock_session = AsyncMock()
-    mock_session.execute.return_value = mock_result
+    mock_session.execute.side_effect = [hash_miss, bill_result, upsert_result]
     mock_session.add = MagicMock()
     mock_session.flush = AsyncMock()
     mock_session.commit = AsyncMock()
@@ -277,4 +294,4 @@ async def test_ingest_skips_dataset_with_missing_schema_keys():
         await ingest_all_states()
 
     mock_session.rollback.assert_awaited_once()
-    mock_cache.set_dataset_hash.assert_called_once_with(2, "h2")
+    assert mock_session.execute.call_count == 3

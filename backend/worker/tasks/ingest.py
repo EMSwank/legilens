@@ -4,9 +4,11 @@ import io
 import json
 import logging
 import zipfile
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from app.database import async_session
 from app.models.bill import Bill
+from app.models.dataset_hash import DatasetHash
 from app.models.minhash_signature import MinHashSignature
 from app.services.legiscan import LegiScanClient
 from app.services.minhash import compute_minhash
@@ -29,15 +31,26 @@ async def ingest_all_states():
                     current_hash = ds["dataset_hash"]
                     access_key = ds["access_key"]
 
-                    stored_hash = await cache.get_dataset_hash(session_id)
-                    if stored_hash == current_hash:
+                    stored = await session.execute(
+                        select(DatasetHash.hash).where(DatasetHash.session_id == session_id)
+                    )
+                    if stored.scalar() == current_hash:
                         continue
 
                     zip_bytes = await client.get_dataset(session_id, access_key)
                     bills = _parse_dataset_zip(zip_bytes)
                     for bill in bills:
                         await _process_bill(session, cache, bill, state)
-                    await cache.set_dataset_hash(session_id, current_hash)
+
+                    await session.execute(
+                        pg_insert(DatasetHash)
+                        .values(session_id=session_id, hash=current_hash)
+                        .on_conflict_do_update(
+                            index_elements=["session_id"],
+                            set_={"hash": current_hash, "updated_at": func.now()},
+                        )
+                    )
+                    await session.commit()
                 except Exception:  # pylint: disable=broad-exception-caught
                     logger.exception("Failed to ingest dataset session_id=%s state=%s - skipping", session_id, state)
                     await session.rollback()
