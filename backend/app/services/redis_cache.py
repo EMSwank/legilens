@@ -19,16 +19,5 @@ class RedisCache:
             return None
         return zlib.decompress(data).decode("utf8")
 
-    async def get_dataset_hash(self, session_id: int) -> str | None:
-        key = f"datasets:{session_id}:hash"
-        data = await self._redis.get(key)
-        if data is None:
-            return None
-        return data.decode("utf8")
-
-    async def set_dataset_hash(self, session_id: int, hash_value: str) -> None:
-        key = f"datasets:{session_id}:hash"
-        await self._redis.set(key, hash_value.encode("utf8"))
-
     async def close(self):
         await self._redis.aclose()

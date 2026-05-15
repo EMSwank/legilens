@@ -10,6 +10,7 @@ import app.models.minhash_signature
 import app.models.ist_score
 import app.models.similarity_match
 import app.models.friction_tag
+import app.models.dataset_hash
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.asyncpg_database_url)
