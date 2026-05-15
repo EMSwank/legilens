@@ -29,5 +29,8 @@ out/
 # IDE
 .vscode/
 .idea/
+
+# Claude Code
+.claude/
 /backend/.coverage
 /frontend/test-results/*.json
