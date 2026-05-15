@@ -33,21 +33,48 @@ async def test_get_dataset_list_returns_empty_on_missing_key(client):
     assert result == []
 
 async def test_get_dataset_returns_bytes(client):
+    import base64
     fake_zip = b"PK\x03\x04fakezipbytes"
+    payload = {"status": "OK", "dataset": {"zip": base64.b64encode(fake_zip).decode()}}
     with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
-        mock_get.return_value.content = fake_zip
+        mock_get.return_value.json = MagicMock(return_value=payload)
         mock_get.return_value.raise_for_status = lambda: None
-        result = await client.get_dataset("abc123")
+        result = await client.get_dataset(2243, "abc123")
     assert result == fake_zip
 
 
-async def test_get_dataset_raises_on_non_zip_response(client):
-    json_error = b'{"status":"ERROR","alert":{"message":"Invalid API key"}}'
+async def test_get_dataset_passes_id_and_access_key(client):
+    import base64
+    fake_zip = b"PK\x03\x04ok"
+    payload = {"status": "OK", "dataset": {"zip": base64.b64encode(fake_zip).decode()}}
     with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
-        mock_get.return_value.content = json_error
+        mock_get.return_value.json = MagicMock(return_value=payload)
         mock_get.return_value.raise_for_status = lambda: None
-        with pytest.raises(ValueError, match="non-zip"):
-            await client.get_dataset("abc123")
+        await client.get_dataset(2243, "abc123")
+    sent_params = mock_get.call_args.kwargs["params"]
+    assert sent_params["id"] == 2243
+    assert sent_params["access_key"] == "abc123"
+    assert sent_params["op"] == "getDataset"
+
+
+async def test_get_dataset_raises_on_error_status(client):
+    payload = {"status": "ERROR", "alert": {"message": "Invalid session id"}}
+    with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value.json = MagicMock(return_value=payload)
+        mock_get.return_value.raise_for_status = lambda: None
+        with pytest.raises(ValueError, match="non-OK status"):
+            await client.get_dataset(2243, "abc123")
+
+
+async def test_get_dataset_raises_when_decoded_not_zip(client):
+    import base64
+    not_zip = base64.b64encode(b"not a zip file").decode()
+    payload = {"status": "OK", "dataset": {"zip": not_zip}}
+    with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value.json = MagicMock(return_value=payload)
+        mock_get.return_value.raise_for_status = lambda: None
+        with pytest.raises(ValueError, match="not a zip"):
+            await client.get_dataset(2243, "abc123")
 
 async def test_get_bill_text_returns_text(client):
     mock_response = {"status": "OK", "bill": {"texts": [{"doc": "The bill text here."}]}}

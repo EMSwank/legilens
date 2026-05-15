@@ -179,7 +179,7 @@ async def test_ingest_downloads_changed_dataset():
          patch("worker.tasks.ingest.async_session", return_value=mock_session):
         await ingest_all_states()
 
-    mock_client.get_dataset.assert_called_once_with("xyz")
+    mock_client.get_dataset.assert_called_once_with(2, "xyz")
     mock_cache.set_dataset_hash.assert_called_once_with(2, "new_hash")
 
 

@@ -33,7 +33,7 @@ async def ingest_all_states():
                     if stored_hash == current_hash:
                         continue
 
-                    zip_bytes = await client.get_dataset(access_key)
+                    zip_bytes = await client.get_dataset(session_id, access_key)
                     bills = _parse_dataset_zip(zip_bytes)
                     for bill in bills:
                         await _process_bill(session, cache, bill, state)
