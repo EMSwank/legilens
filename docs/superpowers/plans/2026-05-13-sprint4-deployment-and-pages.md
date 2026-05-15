@@ -2465,7 +2465,7 @@ These steps are run with the user. The plan documents the sequence; agent assist
   - `PYTHONPATH` = `.`
 - [x] **Step 5:** Trigger deploy. Watch logs for `alembic upgrade head` success then `Uvicorn running on http://0.0.0.0:...`
 - [x] **Step 6:** Capture Railway-generated public URL (e.g., `https://legilens-web-production.up.railway.app`)
-- [ ] **Step 7:** Smoke test:
+- [x] **Step 7:** Smoke test:
   ```bash
   curl https://<railway-web-url>/stats -H 'User-Agent: smoke-test'
   curl https://<railway-web-url>/bills/sessions -H 'User-Agent: smoke-test'
@@ -2479,7 +2479,7 @@ These steps are run with the user. The plan documents the sequence; agent assist
   - Start command (override): `cd backend && python -m worker.scheduler`
 - [x] **Step 3:** Copy the same env vars from `legilens-web` to `legilens-worker` (or use a Railway shared env group)
 - [x] **Step 4:** Trigger deploy. Watch logs for `Scheduler started` line from APScheduler
-- [ ] **Step 5:** Confirm in Neon SQL editor that `alembic_version` table contains a row matching the latest revision in `backend/alembic/versions/`
+- [x] **Step 5:** Confirm in Neon SQL editor that `alembic_version` table contains a row matching the latest revision in `backend/alembic/versions/`
 
 ### Task 7.3: Deploy to Vercel (new account walkthrough)
 
@@ -2509,7 +2509,7 @@ These steps are run with the user. The plan documents the sequence; agent assist
 **Files:**
 - Modify: `README.md`
 
-- [ ] **Step 1:** Create branch + update README sprint table**
+- [x] **Step 1:** Create branch + update README sprint table**
 
 ```bash
 git checkout -b docs/sprint4-status
@@ -2532,7 +2532,7 @@ And add a "Sprint 4 — what shipped" section below the existing Sprint 3 summar
 - A11y: `@axe-core/playwright` added to E2E, `frontend/A11Y_CHECKLIST.md` enforces per-PR manual checks
 ```
 
-- [ ] **Step 2:** Commit + PR
+- [x] **Step 2:** Commit + PR
 
 ```bash
 git add README.md
