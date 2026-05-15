@@ -18,7 +18,7 @@ async def test_process_bill_stores_signature():
     raw_text = "The commission shall establish fees not to exceed one hundred dollars per application submitted."
     bill_data = {
         "bill_id": 42,
-        "number": "SB-1",
+        "bill_number": "SB-1",
         "title": "Test Bill",
         "session": {"session_name": "2024A"},
         "texts": [{"doc": base64.b64encode(raw_text.encode()).decode()}],
@@ -43,7 +43,7 @@ async def test_process_bill_stores_bill_only_when_no_text():
 
     bill_data = {
         "bill_id": 1,
-        "number": "HB-1",
+        "bill_number": "HB-1",
         "title": "No Text Bill",
         "session": {"session_name": "2024A"},
         "texts": [],
@@ -71,7 +71,7 @@ async def test_process_bill_sets_corpus_only_for_non_co_state():
     raw_text = "The commission shall establish fees not to exceed one hundred dollars per application."
     bill_data = {
         "bill_id": 55,
-        "number": "HB-55",
+        "bill_number": "HB-55",
         "title": "TX Bill",
         "session": {"session_name": "2024R"},
         "texts": [{"doc": base64.b64encode(raw_text.encode()).decode()}],
@@ -103,7 +103,7 @@ async def test_process_bill_skips_insert_for_existing_bill():
     raw_text = "The commission shall establish fees not to exceed one hundred dollars."
     bill_data = {
         "bill_id": 42,
-        "number": "SB-1",
+        "bill_number": "SB-1",
         "title": "Existing Bill",
         "session": {"session_name": "2024A"},
         "texts": [{"doc": base64.b64encode(raw_text.encode()).decode()}],
@@ -144,7 +144,7 @@ async def test_ingest_downloads_changed_dataset():
     bill_json = json.dumps({
         "bill": {
             "bill_id": 99,
-            "number": "HB-99",
+            "bill_number": "HB-99",
             "title": "Changed Bill",
             "session": {"session_name": "2024A"},
             "texts": [{"doc": base64.b64encode(raw_text.encode()).decode()}],
@@ -191,7 +191,7 @@ async def test_ingest_continues_after_failed_dataset():
 
     good_bill_json = json.dumps({
         "bill": {
-            "bill_id": 7, "number": "HB-7", "title": "Good", "session": {"session_name": "2024A"},
+            "bill_id": 7, "bill_number": "HB-7", "title": "Good", "session": {"session_name": "2024A"},
             "texts": [],
         }
     }).encode()
@@ -241,7 +241,7 @@ async def test_ingest_skips_dataset_with_missing_schema_keys():
 
     good_bill_json = json.dumps({
         "bill": {
-            "bill_id": 11, "number": "HB-11", "title": "Good", "session": {"session_name": "2024A"},
+            "bill_id": 11, "bill_number": "HB-11", "title": "Good", "session": {"session_name": "2024A"},
             "texts": [],
         }
     }).encode()
