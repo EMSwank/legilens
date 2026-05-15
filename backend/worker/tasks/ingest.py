@@ -54,7 +54,9 @@ def _parse_dataset_zip(zip_bytes: bytes) -> list[dict]:
                 continue
             with zf.open(name) as f:
                 data = json.load(f)
-            bill = data.get("bill", data)
+            bill = data.get("bill")
+            if not isinstance(bill, dict) or not bill.get("bill_id"):
+                continue
             bills.append(bill)
     return bills
 
@@ -73,7 +75,10 @@ def _extract_text(bill: dict) -> str | None:
 
 
 async def _process_bill(session, cache, bill: dict, state: str) -> None:
-    legiscan_id = bill["bill_id"]
+    legiscan_id = bill.get("bill_id")
+    if not legiscan_id:
+        return
+    state = bill.get("state") or state
     is_co = state == "CO"
     text = _extract_text(bill)
 
@@ -84,7 +89,7 @@ async def _process_bill(session, cache, bill: dict, state: str) -> None:
             legiscan_id=legiscan_id,
             state=state,
             session=bill.get("session", {}).get("session_name", ""),
-            bill_number=bill.get("number", ""),
+            bill_number=bill.get("bill_number", ""),
             title=bill.get("title", ""),
             is_corpus_only=not is_co,
             full_text=text if is_co else None,
