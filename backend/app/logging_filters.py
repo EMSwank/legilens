@@ -9,11 +9,9 @@ class RedactAPIKeyFilter(logging.Filter):
     never reaches stdout (httpx logs full request URLs at INFO level)."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        if isinstance(record.msg, str):
-            record.msg = _KEY_RE.sub(r"\1***", record.msg)
-        if record.args:
-            record.args = tuple(
-                _KEY_RE.sub(r"\1***", a) if isinstance(a, str) else a
-                for a in record.args
-            )
+        message = record.getMessage()
+        redacted = _KEY_RE.sub(r"\1***", message)
+        if redacted != message:
+            record.msg = redacted
+            record.args = None
         return True

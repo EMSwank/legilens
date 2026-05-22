@@ -27,6 +27,26 @@ def test_redacts_key_in_args():
     assert "key=***" in rec.getMessage()
 
 
+class _FakeURL:
+    """Mimics httpx.URL — logged by httpx as a positional arg, not a str."""
+
+    def __init__(self, value):
+        self._value = value
+
+    def __str__(self):
+        return self._value
+
+
+def test_redacts_key_in_non_str_arg():
+    rec = _record(
+        'HTTP Request: %s %s',
+        ("GET", _FakeURL("https://api.legiscan.com/?key=64c1f9cd497d&op=getDatasetList")),
+    )
+    RedactAPIKeyFilter().filter(rec)
+    assert "64c1f9cd497d" not in rec.getMessage()
+    assert "key=***" in rec.getMessage()
+
+
 def test_leaves_unrelated_message_untouched():
     rec = _record("Pipeline complete.")
     RedactAPIKeyFilter().filter(rec)
