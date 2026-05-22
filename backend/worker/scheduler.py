@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.database import async_session
+from app.logging_filters import RedactAPIKeyFilter
 from app.models.bill import Bill
 from worker.tasks.evidence import extract_all_pending_evidence
 from worker.tasks.ingest import ingest_all_states
@@ -111,6 +112,9 @@ async def _main() -> None:
 
 def start() -> None:
     logging.basicConfig(level=logging.INFO)
+    redact = RedactAPIKeyFilter()
+    for handler in logging.getLogger().handlers:
+        handler.addFilter(redact)
     asyncio.run(_main())
 
 

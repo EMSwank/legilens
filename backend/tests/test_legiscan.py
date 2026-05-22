@@ -32,6 +32,15 @@ async def test_get_dataset_list_returns_empty_on_missing_key(client):
         result = await client.get_dataset_list()
     assert result == []
 
+async def test_get_dataset_list_raises_on_error_status(client):
+    payload = {"status": "ERROR", "alert": {"message": "API key has been administratively locked by LegiScan"}}
+    with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value.json = MagicMock(return_value=payload)
+        mock_get.return_value.raise_for_status = lambda: None
+        with pytest.raises(ValueError, match="non-OK status"):
+            await client.get_dataset_list()
+
+
 async def test_get_dataset_returns_bytes(client):
     import base64
     fake_zip = b"PK\x03\x04fakezipbytes"

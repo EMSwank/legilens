@@ -14,7 +14,10 @@ class LegiScanClient:
         """Returns all sessions with their change hashes. One call covers all 50 states."""
         resp = await self._http.get("/", params={"key": self.api_key, "op": "getDatasetList"})
         resp.raise_for_status()
-        return resp.json().get("datasetlist", [])
+        payload = resp.json()
+        if payload.get("status") != "OK":
+            raise ValueError(f"getDatasetList returned non-OK status: {payload!r}")
+        return payload.get("datasetlist", [])
 
     async def get_dataset(self, session_id: int, access_key: str) -> bytes:
         """Downloads a full session dataset as a zip.
