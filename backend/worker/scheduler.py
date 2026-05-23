@@ -37,26 +37,28 @@ async def _run_match_and_evidence() -> bool:
 
 async def run_full_pipeline() -> bool:
     """Bootstrap-friendly pipeline: ingest CO first so the live site has data
-    quickly, then ingest the remaining 49 states and re-match against the
-    fuller corpus.
+    quickly, then ingest the remaining 49 states and run match + evidence
+    against the full corpus.
+
+    Pass 1 deliberately skips match + evidence: with an empty corpus the only
+    output would be stub ISTScore rows that pass 2 would have to overwrite,
+    and the bill list endpoint outerjoins ISTScore so CO bills render fine
+    without a score row.
     """
-    logger.info("Pipeline start: ingesting CO first")
+    logger.info("Pipeline start (pass=1): ingesting CO only for fast visibility")
     try:
         await ingest_all_states(only_state="CO")
     except Exception:  # pylint: disable=broad-exception-caught
         logger.exception("CO ingest failed; aborting pipeline run")
         return False
-    logger.info("CO ingest complete. Running initial match + evidence.")
-    if not await _run_match_and_evidence():
-        return False
 
-    logger.info("Initial pass complete. Ingesting remaining states for full corpus.")
+    logger.info("Pipeline (pass=2): ingesting remaining states for full corpus")
     try:
         await ingest_all_states()
     except Exception:  # pylint: disable=broad-exception-caught
         logger.exception("Full corpus ingest failed; aborting pipeline run")
         return False
-    logger.info("Full ingest complete. Re-running match + evidence against full corpus.")
+    logger.info("Full ingest complete. Running match + evidence against full corpus.")
     if not await _run_match_and_evidence():
         return False
 

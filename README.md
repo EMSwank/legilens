@@ -72,6 +72,8 @@ MVP shipped — deployed on Railway (backend) + Vercel (frontend). Post-MVP modu
 - LegiScan dataset dedup state persisted in Postgres so worker restarts no longer re-download all 50 state archives
 - LegiScan API key redacted from all worker log lines (including non-string args), with a loud failure mode when the key is locked
 - Worker caches each downloaded ZIP to `/data/zip_cache` on a Railway Volume; on cold start, reads `hash.md5` inside the archive and skips `getDataset` when the manifest matches the API hash; fresh-ZIP manifest mismatch is now a hard error, not a warning
+- Worker opens a fresh DB session per dataset so Neon's idle-connection drop during sync ZIP parsing no longer hangs ingestion
+- Cold-start pipeline is two-pass: Colorado bills ingest first so the live site shows data within minutes; the remaining 49 states ingest in pass 2 and feed the full-corpus copycat-similarity match
 
 ### Sprint 4 — what shipped
 
