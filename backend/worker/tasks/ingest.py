@@ -107,17 +107,11 @@ async def _acquire_zip(client, session_id: int, state: str, current_hash: str,
     return zip_bytes
 
 
-async def ingest_all_states(only_state: str | None = None, datasets: list[dict] | None = None):
-    """Ingest every LegiScan dataset, or just one state when only_state is set.
-
-    The only_state filter is used by the cold-start bootstrap to prioritize CO
-    so the live site shows data within minutes instead of waiting for all 50
-    states to grind through MinHash on the worker.
-
-    If datasets is provided, the caller already invoked getDatasetList; the
-    two-pass bootstrap pipeline uses this to avoid spending an extra API query
-    per pass (LegiScan dataset refresh is weekly — duplicate calls within one
-    pipeline run are pure waste).
+async def ingest_all_states(datasets: list[dict] | None = None):
+    """Ingest every LegiScan dataset in `datasets`, or fetch the full list if
+    None. Callers that want to scope to one state must pre-filter via
+    LegiScanClient.get_dataset_list(state=...) — the datasetlist payload has
+    no state_abbr field, so client-side filtering by abbr is impossible.
     """
     client = LegiScanClient(api_key=settings.legiscan_api_key)
     cache = RedisCache(url=settings.redis_url)
@@ -127,8 +121,6 @@ async def ingest_all_states(only_state: str | None = None, datasets: list[dict] 
         for ds in datasets:
             session_id = ds.get("session_id")
             state = ds.get("state", "?")
-            if only_state is not None and state != only_state:
-                continue
             if not isinstance(session_id, int):
                 logger.warning(
                     "dataset has non-int session_id=%r state=%s, skipping",

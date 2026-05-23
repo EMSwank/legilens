@@ -427,44 +427,6 @@ async def test_ingest_aborts_dataset_on_fresh_zip_hash_mismatch(_zip_cache_tmpdi
     mock_session.commit.assert_not_called()
 
 
-async def test_ingest_only_state_filters_other_states(_zip_cache_tmpdir):
-    from worker.tasks.ingest import ingest_all_states
-
-    api_hash = "a" * 32
-    co_bill = {
-        "bill_id": 70, "bill_number": "HB-70", "title": "CO Bill",
-        "session": {"session_name": "2024A"}, "texts": [],
-    }
-    co_zip = _make_zip([co_bill], hash_md5_content=api_hash.encode())
-
-    mock_client = AsyncMock()
-    mock_client.get_dataset_list.return_value = [
-        {"session_id": 100, "state": "TX", "access_key": "k", "dataset_hash": "b" * 32},
-        {"session_id": 101, "state": "CO", "access_key": "k", "dataset_hash": api_hash},
-        {"session_id": 102, "state": "NM", "access_key": "k", "dataset_hash": "c" * 32},
-    ]
-    mock_client.get_dataset.return_value = co_zip
-    mock_cache = AsyncMock()
-
-    hash_miss = MagicMock(); hash_miss.scalar.return_value = None
-    bill_result = MagicMock(); bill_result.scalar_one_or_none.return_value = None
-    upsert_result = MagicMock()
-    mock_session = AsyncMock()
-    mock_session.execute.side_effect = [hash_miss, bill_result, upsert_result]
-    mock_session.add = MagicMock()
-    mock_session.flush = AsyncMock()
-    mock_session.commit = AsyncMock()
-    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_session.__aexit__ = AsyncMock(return_value=False)
-
-    with patch("worker.tasks.ingest.LegiScanClient", return_value=mock_client), \
-         patch("worker.tasks.ingest.RedisCache", return_value=mock_cache), \
-         patch("worker.tasks.ingest.async_session", return_value=mock_session):
-        await ingest_all_states(only_state="CO")
-
-    mock_client.get_dataset.assert_called_once_with(101, "k")
-
-
 async def test_ingest_skips_non_int_session_id(_zip_cache_tmpdir, caplog):
     from worker.tasks.ingest import ingest_all_states
 

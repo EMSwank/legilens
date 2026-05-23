@@ -79,24 +79,30 @@ async def test_bootstrap_if_empty_skips_when_recently_ran():
     fake_scheduler.add_job.assert_not_called()
 
 
-def _fake_client(datasets):
-    """LegiScanClient whose get_dataset_list returns the given list."""
+def _fake_client_two_lists(co_list, all_list):
+    """LegiScanClient whose get_dataset_list returns co_list when state="CO"
+    is passed, all_list otherwise. Mirrors the two-pass bootstrap pipeline."""
     client = AsyncMock()
-    client.get_dataset_list = AsyncMock(return_value=datasets)
+
+    async def _get(state=None):
+        return co_list if state == "CO" else all_list
+
+    client.get_dataset_list = AsyncMock(side_effect=_get)
     client.close = AsyncMock()
     return client
 
 
-async def test_run_full_pipeline_fetches_dataset_list_once_and_passes_to_both_ingests():
+async def test_run_full_pipeline_fetches_co_then_full_and_passes_each_to_its_ingest():
     from worker import scheduler
 
-    fake_list = [{"session_id": 1, "state": "CO"}]
-    client = _fake_client(fake_list)
+    co_list = [{"session_id": 1}]
+    all_list = [{"session_id": 1}, {"session_id": 2}]
+    client = _fake_client_two_lists(co_list, all_list)
 
     calls: list[tuple[str, dict]] = []
 
-    async def fake_ingest(only_state=None, datasets=None):
-        calls.append(("ingest", {"only_state": only_state, "datasets": datasets}))
+    async def fake_ingest(datasets=None):
+        calls.append(("ingest", {"datasets": datasets}))
 
     async def fake_match():
         calls.append(("match", {}))
@@ -112,11 +118,13 @@ async def test_run_full_pipeline_fetches_dataset_list_once_and_passes_to_both_in
         result = await scheduler.run_full_pipeline()
 
     assert result is True
-    # One getDatasetList call, both passes use it
-    client.get_dataset_list.assert_awaited_once()
+    # Two getDatasetList calls: CO-filtered, then unfiltered
+    assert client.get_dataset_list.await_count == 2
+    assert client.get_dataset_list.await_args_list[0].kwargs == {"state": "CO"}
+    assert client.get_dataset_list.await_args_list[1].kwargs == {}
     assert calls == [
-        ("ingest", {"only_state": "CO", "datasets": fake_list}),
-        ("ingest", {"only_state": None, "datasets": fake_list}),
+        ("ingest", {"datasets": co_list}),
+        ("ingest", {"datasets": all_list}),
         ("match", {}),
         ("evidence", {}),
     ]
@@ -125,7 +133,7 @@ async def test_run_full_pipeline_fetches_dataset_list_once_and_passes_to_both_in
 async def test_run_full_pipeline_aborts_on_ingest_failure():
     from worker import scheduler
 
-    client = _fake_client([])
+    client = _fake_client_two_lists([], [])
 
     with patch.object(scheduler, "LegiScanClient", return_value=client), patch.object(
         scheduler, "ingest_all_states", AsyncMock(side_effect=RuntimeError("boom"))

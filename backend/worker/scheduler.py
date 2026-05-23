@@ -42,9 +42,11 @@ async def run_full_pipeline() -> bool:
     quickly, then ingest the remaining 49 states and run match + evidence
     against the full corpus.
 
-    The LegiScan dataset list is fetched once and passed into both ingest
-    passes — calling getDatasetList twice per run is wasted API quota
-    (datasets refresh weekly per LegiScan docs).
+    Pass 1 uses LegiScan's server-side state filter (getDatasetList?state=CO)
+    rather than client-side filtering — the datasetlist payload has no
+    state_abbr field, only state_id, so filtering by abbr in Python silently
+    matches nothing. Two getDatasetList calls per bootstrap is trivial against
+    the 30k/month quota.
 
     Pass 1 deliberately skips match + evidence: with an empty corpus the only
     output would be stub ISTScore rows that pass 2 would have to overwrite,
@@ -54,26 +56,32 @@ async def run_full_pipeline() -> bool:
     client = LegiScanClient(api_key=settings.legiscan_api_key)
     try:
         try:
-            datasets = await client.get_dataset_list()
+            co_datasets = await client.get_dataset_list(state="CO")
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception("getDatasetList(state=CO) failed; aborting pipeline run")
+            return False
+
+        logger.info("Pipeline start (pass=1): ingesting CO only for fast visibility")
+        try:
+            await ingest_all_states(datasets=co_datasets)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception("CO ingest failed; aborting pipeline run")
+            return False
+
+        try:
+            all_datasets = await client.get_dataset_list()
         except Exception:  # pylint: disable=broad-exception-caught
             logger.exception("getDatasetList failed; aborting pipeline run")
             return False
+
+        logger.info("Pipeline (pass=2): ingesting remaining states for full corpus")
+        try:
+            await ingest_all_states(datasets=all_datasets)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception("Full corpus ingest failed; aborting pipeline run")
+            return False
     finally:
         await client.close()
-
-    logger.info("Pipeline start (pass=1): ingesting CO only for fast visibility")
-    try:
-        await ingest_all_states(only_state="CO", datasets=datasets)
-    except Exception:  # pylint: disable=broad-exception-caught
-        logger.exception("CO ingest failed; aborting pipeline run")
-        return False
-
-    logger.info("Pipeline (pass=2): ingesting remaining states for full corpus")
-    try:
-        await ingest_all_states(datasets=datasets)
-    except Exception:  # pylint: disable=broad-exception-caught
-        logger.exception("Full corpus ingest failed; aborting pipeline run")
-        return False
     logger.info("Full ingest complete. Running match + evidence against full corpus.")
     if not await _run_match_and_evidence():
         return False
