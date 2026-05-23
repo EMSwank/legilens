@@ -17,9 +17,16 @@ class LegiScanClient:
             headers={"User-Agent": LEGISCAN_USER_AGENT},
         )
 
-    async def get_dataset_list(self) -> list[dict]:
-        """Returns all sessions with their change hashes. One call covers all 50 states."""
-        resp = await self._http.get("/", params={"key": self.api_key, "op": "getDatasetList"})
+    async def get_dataset_list(self, state: str | None = None) -> list[dict]:
+        """Returns sessions with their change hashes. Pass state="CO" to get
+        only Colorado sessions (server-side filter) — the response payload has
+        no state_abbr field, only state_id, so client-side filtering by abbr
+        is impossible without a fragile state_id map.
+        """
+        params: dict[str, str] = {"key": self.api_key, "op": "getDatasetList"}
+        if state is not None:
+            params["state"] = state
+        resp = await self._http.get("/", params=params)
         resp.raise_for_status()
         payload = resp.json()
         if payload.get("status") != "OK":
