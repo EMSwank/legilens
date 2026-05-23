@@ -1,6 +1,6 @@
 from decimal import Decimal
 from uuid import UUID
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from app.database import async_session
 from app.models.bill import Bill
 from app.models.minhash_signature import MinHashSignature
@@ -10,6 +10,15 @@ from app.services.minhash import minhash_from_signature, jaccard_estimate
 
 async def match_co_bills():
     async with async_session() as session:
+        # Idempotency: nuke prior match output for CO bills so re-runs (nightly
+        # or two-pass bootstrap) don't accumulate duplicate ISTScore /
+        # SimilarityMatch rows. Bills/list and bills/detail use scalar_one_or_none
+        # on ISTScore and would 500 on duplicates.
+        co_bill_ids = select(Bill.id).where(Bill.is_corpus_only.is_(False))
+        await session.execute(delete(SimilarityMatch).where(SimilarityMatch.bill_id.in_(co_bill_ids)))
+        await session.execute(delete(ISTScore).where(ISTScore.bill_id.in_(co_bill_ids)))
+        await session.commit()
+
         corpus_result = await session.execute(
             select(MinHashSignature, Bill)
             .join(Bill, Bill.id == MinHashSignature.bill_id)

@@ -73,8 +73,10 @@ LegiScan API → backend/worker/ → Neon Postgres → backend/app/ (FastAPI) �
 - `backend/app/schemas/` — Pydantic v2: bill.py, match.py (discriminated union), stats.py
 - `backend/app/models/` — SQLAlchemy ORM: Bill, ISTScore, FrictionTag, SimilarityMatch
 - `backend/worker/tasks/evidence.py` — snippet extraction worker; ghost state when source text unavailable
-- `backend/worker/tasks/ingest.py` — LegiScan dataset sync, MinHash computation, ZIP cache + hash.md5 manifest verification
-- `backend/tests/` — pytest-asyncio suite (96 tests), all API tests using `dependency_overrides` (not patch); worker tests use `unittest.mock.patch`
+- `backend/worker/scheduler.py` — apscheduler entry point; nightly cron + cold-start bootstrap; runs the two-pass pipeline (see below)
+- `backend/worker/tasks/ingest.py` — LegiScan dataset sync, MinHash computation, ZIP cache + hash.md5 manifest verification; `only_state=` param filters to one state for the CO-first bootstrap pass
+- `backend/worker/tasks/match.py` — Jaccard similarity match; CO-only `ISTScore` + `SimilarityMatch` rows are deleted at the top of every run for idempotency
+- `backend/tests/` — pytest-asyncio suite (98 tests), all API tests using `dependency_overrides` (not patch); worker tests use `unittest.mock.patch`
 
 **Design decisions to remember:**
 - `GhostMessage` is synthesized by the router at read time — never stored in DB. `snippet_status == "source_verified_text_missing"` + `matched_snippets IS NULL` → ghost response.
@@ -83,6 +85,8 @@ LegiScan API → backend/worker/ → Neon Postgres → backend/app/ (FastAPI) �
 - `db.execute()` is async; `.scalars()`, `.scalar()`, `.all()`, `scalar_one_or_none()` are sync.
 - `list_bills` and `search_bills` outerjoin `ISTScore` so `copycat_alert` propagates to list views.
 - Dataset dedup truth lives in the `dataset_hashes` Postgres table (PR #35). The worker also caches each ZIP at `$LEGISCAN_ZIP_CACHE_DIR/<session_id>.zip` and reads `hash.md5` inside to (a) seed the DB row on cold start without an extra `getDataset` call and (b) refuse to ingest a fresh ZIP whose internal manifest disagrees with the API `dataset_hash` (PR #39). Prod requires a persistent volume mounted at the cache path; ephemeral disk silently defeats cross-restart caching.
+- `ingest_all_states` opens a fresh `async_session` per dataset (PR #41) — Neon drops idle connections during the sync `_parse_dataset_zip` phase, which would hang the next `session.execute`.
+- Cold-start pipeline is two-pass (PR #42): pass 1 ingests CO only so the live site shows data within minutes; pass 2 ingests the remaining 49 states and runs match + evidence against the full corpus. `match_co_bills` deletes existing CO `ISTScore`/`SimilarityMatch` rows at entry to stay idempotent across nightly + bootstrap reruns.
 
 ### Frontend (Sprints 3 + 4)
 

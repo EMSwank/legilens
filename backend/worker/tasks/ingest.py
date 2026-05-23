@@ -107,7 +107,13 @@ async def _acquire_zip(client, session_id: int, state: str, current_hash: str,
     return zip_bytes
 
 
-async def ingest_all_states():
+async def ingest_all_states(only_state: str | None = None):
+    """Ingest every LegiScan dataset, or just one state when only_state is set.
+
+    The only_state filter is used by the cold-start bootstrap to prioritize CO
+    so the live site shows data within minutes instead of waiting for all 50
+    states to grind through MinHash on the worker.
+    """
     client = LegiScanClient(api_key=settings.legiscan_api_key)
     cache = RedisCache(url=settings.redis_url)
     try:
@@ -115,6 +121,8 @@ async def ingest_all_states():
         for ds in datasets:
             session_id = ds.get("session_id")
             state = ds.get("state", "?")
+            if only_state is not None and state != only_state:
+                continue
             if not isinstance(session_id, int):
                 logger.warning(
                     "dataset has non-int session_id=%r state=%s, skipping",

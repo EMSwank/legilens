@@ -78,6 +78,34 @@ async def test_bootstrap_if_empty_skips_when_recently_ran():
     fake_scheduler.add_job.assert_not_called()
 
 
+async def test_run_full_pipeline_two_pass_order():
+    from worker import scheduler
+
+    calls: list[tuple[str, dict]] = []
+
+    async def fake_ingest(only_state=None):
+        calls.append(("ingest", {"only_state": only_state}))
+
+    async def fake_match():
+        calls.append(("match", {}))
+
+    async def fake_evidence():
+        calls.append(("evidence", {}))
+
+    with patch.object(scheduler, "ingest_all_states", fake_ingest), patch.object(
+        scheduler, "match_co_bills", fake_match
+    ), patch.object(scheduler, "extract_all_pending_evidence", fake_evidence):
+        result = await scheduler.run_full_pipeline()
+
+    assert result is True
+    assert calls == [
+        ("ingest", {"only_state": "CO"}),
+        ("ingest", {"only_state": None}),
+        ("match", {}),
+        ("evidence", {}),
+    ]
+
+
 async def test_run_full_pipeline_aborts_on_ingest_failure():
     from worker import scheduler
 
