@@ -112,17 +112,17 @@ async def ingest_all_states():
     cache = RedisCache(url=settings.redis_url)
     try:
         datasets = await client.get_dataset_list()
-        async with async_session() as session:
-            for ds in datasets:
-                session_id = ds.get("session_id")
-                state = ds.get("state", "?")
+        for ds in datasets:
+            session_id = ds.get("session_id")
+            state = ds.get("state", "?")
+            if not isinstance(session_id, int):
+                logger.warning(
+                    "dataset has non-int session_id=%r state=%s, skipping",
+                    session_id, state,
+                )
+                continue
+            async with async_session() as session:
                 try:
-                    if not isinstance(session_id, int):
-                        logger.warning(
-                            "dataset has non-int session_id=%r state=%s, skipping",
-                            session_id, state,
-                        )
-                        continue
                     current_hash = ds["dataset_hash"]
                     access_key = ds["access_key"]
 
