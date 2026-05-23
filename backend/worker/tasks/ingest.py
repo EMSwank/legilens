@@ -3,7 +3,9 @@ import binascii
 import io
 import json
 import logging
+import re
 import zipfile
+from pathlib import Path
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from app.database import async_session
@@ -16,6 +18,56 @@ from app.services.redis_cache import RedisCache
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+_MD5_RE = re.compile(r"^[0-9a-f]{32}$")
+
+
+def _zip_cache_path(session_id: int) -> Path:
+    return Path(settings.legiscan_zip_cache_dir) / f"{session_id}.zip"
+
+
+def _read_hash_md5(zip_bytes: bytes) -> str | None:
+    """Read the dataset hash manifest from a LegiScan ZIP. Tries 'hash.md5' by name, then falls back to the last file in the archive (per LegiScan_Bulk PHP utility). Returns lowercase md5 hex, or None."""
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(zip_bytes))
+    except zipfile.BadZipFile:
+        return None
+    with zf:
+        candidates: list[bytes] = []
+        try:
+            candidates.append(zf.read("hash.md5"))
+        except KeyError:
+            pass
+        names = zf.namelist()
+        if names:
+            try:
+                candidates.append(zf.read(names[-1]))
+            except KeyError:
+                pass
+    for raw in candidates:
+        lines = [ln for ln in raw.decode("utf-8", errors="replace").splitlines() if ln.strip()]
+        if not lines:
+            continue
+        token = lines[0].strip().split()[0].lower()
+        if _MD5_RE.match(token):
+            return token
+    return None
+
+
+def _load_cached_zip(session_id: int) -> bytes | None:
+    path = _zip_cache_path(session_id)
+    try:
+        return path.read_bytes()
+    except FileNotFoundError:
+        return None
+
+
+def _save_cached_zip(session_id: int, zip_bytes: bytes) -> None:
+    path = _zip_cache_path(session_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".zip.tmp")
+    tmp.write_bytes(zip_bytes)
+    tmp.replace(path)
 
 
 async def ingest_all_states():
@@ -34,10 +86,36 @@ async def ingest_all_states():
                     stored = await session.execute(
                         select(DatasetHash.hash).where(DatasetHash.session_id == session_id)
                     )
-                    if stored.scalar() == current_hash:
+                    stored_hash = stored.scalar()
+                    if stored_hash == current_hash:
                         continue
 
-                    zip_bytes = await client.get_dataset(session_id, access_key)
+                    zip_bytes = None
+                    cached_zip = _load_cached_zip(session_id)
+                    if cached_zip is not None:
+                        cached_md5 = _read_hash_md5(cached_zip)
+                        if stored_hash is not None and cached_md5 is not None and cached_md5 != stored_hash:
+                            logger.warning(
+                                "dataset session_id=%s state=%s: cached ZIP hash.md5 %s diverges from stored hash %s",
+                                session_id, state, cached_md5, stored_hash,
+                            )
+                        if cached_md5 == current_hash:
+                            zip_bytes = cached_zip
+                            logger.info(
+                                "dataset session_id=%s state=%s: seeding from cached ZIP (hash %s)",
+                                session_id, state, cached_md5,
+                            )
+
+                    if zip_bytes is None:
+                        zip_bytes = await client.get_dataset(session_id, access_key)
+                        fresh_md5 = _read_hash_md5(zip_bytes)
+                        if fresh_md5 is not None and fresh_md5 != current_hash:
+                            logger.warning(
+                                "dataset session_id=%s state=%s: fresh ZIP hash.md5 %s != API dataset_hash %s",
+                                session_id, state, fresh_md5, current_hash,
+                            )
+                        _save_cached_zip(session_id, zip_bytes)
+
                     bills = _parse_dataset_zip(zip_bytes)
                     for bill in bills:
                         await _process_bill(session, cache, bill, state)

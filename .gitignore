@@ -33,4 +33,5 @@ out/
 # Claude Code
 .claude/
 /backend/.coverage
+/backend/var/
 /frontend/test-results/*.json
