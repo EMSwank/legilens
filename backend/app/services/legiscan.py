@@ -4,11 +4,18 @@ import binascii
 import httpx
 
 LEGISCAN_BASE = "https://api.legiscan.com/"
+LEGISCAN_USER_AGENT = "legilens-worker/1.0 (+https://github.com/EMSwank/legilens)"
 
 class LegiScanClient:
     def __init__(self, api_key: str):
         self.api_key = api_key
-        self._http = httpx.AsyncClient(base_url=LEGISCAN_BASE, timeout=60)
+        # Datasets can be 20MB+ over slow links; 60s was timing out and burning
+        # an API query per retry. Connect stays short to fail fast on network drops.
+        self._http = httpx.AsyncClient(
+            base_url=LEGISCAN_BASE,
+            timeout=httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0),
+            headers={"User-Agent": LEGISCAN_USER_AGENT},
+        )
 
     async def get_dataset_list(self) -> list[dict]:
         """Returns all sessions with their change hashes. One call covers all 50 states."""
