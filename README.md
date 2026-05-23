@@ -74,6 +74,7 @@ MVP shipped — deployed on Railway (backend) + Vercel (frontend). Post-MVP modu
 - Worker caches each downloaded ZIP to `/data/zip_cache` on a Railway Volume; on cold start, reads `hash.md5` inside the archive and skips `getDataset` when the manifest matches the API hash; fresh-ZIP manifest mismatch is now a hard error, not a warning
 - Worker opens a fresh DB session per dataset so Neon's idle-connection drop during sync ZIP parsing no longer hangs ingestion
 - Cold-start pipeline is two-pass: Colorado bills ingest first so the live site shows data within minutes; the remaining 49 states ingest in pass 2 and feed the full-corpus copycat-similarity match
+- Bootstrap debounce moved off ephemeral Redis into Postgres (7-day TTL); `getDatasetList` is called exactly once per pipeline run; LegiScan requests now identify the operator via User-Agent so the API team can reach out before locking the key
 
 ### Sprint 4 — what shipped
 
