@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     database_url: str
     redis_url: str
     legiscan_api_key: str
+    # Must point to a persistent volume in prod (e.g. /data/zip_cache on a Railway
+    # Volume); ephemeral container disk defeats the cross-restart cache.
+    legiscan_zip_cache_dir: str = "./var/zip_cache"
     allowed_origins: list[str] = ["http://localhost:3000"]
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

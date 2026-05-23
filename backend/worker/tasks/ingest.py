@@ -3,7 +3,9 @@ import binascii
 import io
 import json
 import logging
+import re
 import zipfile
+from pathlib import Path
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from app.database import async_session
@@ -17,6 +19,93 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+_MD5_RE = re.compile(r"^[0-9a-f]{32}$")
+
+
+def _zip_cache_path(session_id: int) -> Path:
+    return Path(settings.legiscan_zip_cache_dir) / f"{session_id}.zip"
+
+
+def _read_hash_md5(zip_bytes: bytes) -> str | None:
+    """Read dataset hash manifest from a LegiScan ZIP.
+
+    Tries 'hash.md5' by name, then falls back to the last file in the archive
+    (per LegiScan_Bulk PHP utility). Returns lowercase md5 hex, or None.
+    """
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(zip_bytes))
+    except zipfile.BadZipFile:
+        return None
+    with zf:
+        candidates: list[bytes] = []
+        try:
+            candidates.append(zf.read("hash.md5"))
+        except KeyError:
+            pass
+        names = zf.namelist()
+        if names:
+            try:
+                candidates.append(zf.read(names[-1]))
+            except KeyError:
+                pass
+    for raw in candidates:
+        lines = [ln for ln in raw.decode("utf-8", errors="replace").splitlines() if ln.strip()]
+        if not lines:
+            continue
+        token = lines[0].strip().split()[0].lower()
+        if _MD5_RE.match(token):
+            return token
+    return None
+
+
+def _load_cached_zip(session_id: int) -> bytes | None:
+    path = _zip_cache_path(session_id)
+    try:
+        return path.read_bytes()
+    except FileNotFoundError:
+        return None
+
+
+def _save_cached_zip(session_id: int, zip_bytes: bytes) -> None:
+    path = _zip_cache_path(session_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".zip.tmp")
+    tmp.write_bytes(zip_bytes)
+    tmp.replace(path)
+
+
+async def _acquire_zip(client, session_id: int, state: str, current_hash: str,
+                       stored_hash: str | None, access_key: str) -> bytes:
+    cached_zip = _load_cached_zip(session_id)
+    if cached_zip is not None:
+        cached_md5 = _read_hash_md5(cached_zip)
+        if stored_hash is not None and cached_md5 is not None and cached_md5 != stored_hash:
+            logger.warning(
+                "dataset session_id=%s state=%s: cached ZIP hash.md5 %s diverges from stored hash %s",
+                session_id, state, cached_md5, stored_hash,
+            )
+        if cached_md5 == current_hash:
+            logger.info(
+                "dataset session_id=%s state=%s: seeding from cached ZIP (hash %s)",
+                session_id, state, cached_md5,
+            )
+            return cached_zip
+
+    zip_bytes = await client.get_dataset(session_id, access_key)
+    fresh_md5 = _read_hash_md5(zip_bytes)
+    if fresh_md5 is None:
+        logger.info(
+            "dataset session_id=%s state=%s: no parseable hash.md5 manifest in fresh ZIP",
+            session_id, state,
+        )
+    elif fresh_md5 != current_hash:
+        raise ValueError(
+            f"dataset session_id={session_id} state={state}: fresh ZIP hash.md5 "
+            f"{fresh_md5} != API dataset_hash {current_hash}"
+        )
+    _save_cached_zip(session_id, zip_bytes)
+    return zip_bytes
+
 
 async def ingest_all_states():
     client = LegiScanClient(api_key=settings.legiscan_api_key)
@@ -28,18 +117,26 @@ async def ingest_all_states():
                 session_id = ds.get("session_id")
                 state = ds.get("state", "?")
                 try:
+                    if not isinstance(session_id, int):
+                        logger.warning(
+                            "dataset has non-int session_id=%r state=%s, skipping",
+                            session_id, state,
+                        )
+                        continue
                     current_hash = ds["dataset_hash"]
                     access_key = ds["access_key"]
 
                     stored = await session.execute(
                         select(DatasetHash.hash).where(DatasetHash.session_id == session_id)
                     )
-                    if stored.scalar() == current_hash:
+                    stored_hash = stored.scalar()
+                    if stored_hash == current_hash:
                         continue
 
-                    zip_bytes = await client.get_dataset(session_id, access_key)
-                    bills = _parse_dataset_zip(zip_bytes)
-                    for bill in bills:
+                    zip_bytes = await _acquire_zip(
+                        client, session_id, state, current_hash, stored_hash, access_key
+                    )
+                    for bill in _parse_dataset_zip(zip_bytes):
                         await _process_bill(session, cache, bill, state)
 
                     await session.execute(

@@ -56,6 +56,7 @@ To quantify the "Friction Gap" in the Colorado General Assembly by analyzing the
 | Sprint 2 | FastAPI read-only API, Pydantic v2 schemas, rate limiting, 56 tests | ✅ Merged to main |
 | Sprint 3 | Next.js 16 frontend, WCAG 2.1 AA, TanStack Query, Playwright E2E | ✅ Merged to main |
 | Sprint 4 | Railway/Vercel deploy config, sessions endpoint, tag_type filter, /about + /accessibility + /tags pages, dashboard session dropdown + filter chips | ✅ Merged to main (PRs #12–#16) |
+| Post-MVP | Ingest hardening: Postgres-backed dataset dedup (PR #35), API-key redaction in logs (PRs #36–#37) merged; local ZIP cache + hash.md5 manifest enforcement (PR #39) open | 🔄 In progress |
 
 ## **6\. Architecture**
 
@@ -72,8 +73,8 @@ LegiScan API → backend/worker/ → Neon Postgres → backend/app/ (FastAPI) �
 - `backend/app/schemas/` — Pydantic v2: bill.py, match.py (discriminated union), stats.py
 - `backend/app/models/` — SQLAlchemy ORM: Bill, ISTScore, FrictionTag, SimilarityMatch
 - `backend/worker/tasks/evidence.py` — snippet extraction worker; ghost state when source text unavailable
-- `backend/worker/tasks/ingest.py` — LegiScan dataset sync, MinHash computation
-- `backend/tests/` — 70 pytest-asyncio tests, all using `dependency_overrides` (not patch)
+- `backend/worker/tasks/ingest.py` — LegiScan dataset sync, MinHash computation, ZIP cache + hash.md5 manifest verification
+- `backend/tests/` — pytest-asyncio suite (96 tests), all API tests using `dependency_overrides` (not patch); worker tests use `unittest.mock.patch`
 
 **Design decisions to remember:**
 - `GhostMessage` is synthesized by the router at read time — never stored in DB. `snippet_status == "source_verified_text_missing"` + `matched_snippets IS NULL` → ghost response.
@@ -81,6 +82,7 @@ LegiScan API → backend/worker/ → Neon Postgres → backend/app/ (FastAPI) �
 - `BillDetail` is constructed manually in the route handler (no `from_attributes`); `ISTScoreOut` and `FrictionTagOut` use `from_attributes = True`.
 - `db.execute()` is async; `.scalars()`, `.scalar()`, `.all()`, `scalar_one_or_none()` are sync.
 - `list_bills` and `search_bills` outerjoin `ISTScore` so `copycat_alert` propagates to list views.
+- Dataset dedup truth lives in the `dataset_hashes` Postgres table (PR #35). The worker also caches each ZIP at `$LEGISCAN_ZIP_CACHE_DIR/<session_id>.zip` and reads `hash.md5` inside to (a) seed the DB row on cold start without an extra `getDataset` call and (b) refuse to ingest a fresh ZIP whose internal manifest disagrees with the API `dataset_hash` (PR #39). Prod requires a persistent volume mounted at the cache path; ephemeral disk silently defeats cross-restart caching.
 
 ### Frontend (Sprints 3 + 4)
 

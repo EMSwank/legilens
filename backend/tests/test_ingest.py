@@ -1,7 +1,28 @@
 import base64
+import io
+import json
+import logging
+import zipfile
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
+
+
+@pytest.fixture(autouse=True)
+def _zip_cache_tmpdir(tmp_path, monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "legiscan_zip_cache_dir", str(tmp_path / "zip_cache"))
+    yield tmp_path / "zip_cache"
+
+
+def _make_zip(bills: list[dict], hash_md5_content: bytes | None = b"") -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        for i, bill in enumerate(bills):
+            zf.writestr(f"{i}.json", json.dumps({"bill": bill}).encode())
+        if hash_md5_content is not None:
+            zf.writestr("hash.md5", hash_md5_content)
+    return buf.getvalue()
 
 async def test_process_bill_stores_signature():
     from worker.tasks.ingest import _process_bill
@@ -244,6 +265,191 @@ async def test_ingest_continues_after_failed_dataset():
 
     mock_session.rollback.assert_awaited_once()
     assert mock_session.execute.call_count == 4
+
+
+def test_read_hash_md5_plain_hash():
+    from worker.tasks.ingest import _read_hash_md5
+    h = "a" * 32
+    zb = _make_zip([], hash_md5_content=h.encode())
+    assert _read_hash_md5(zb) == h
+
+
+def test_read_hash_md5_md5sum_format():
+    from worker.tasks.ingest import _read_hash_md5
+    h = "b" * 32
+    zb = _make_zip([], hash_md5_content=f"{h}  payload.json\n".encode())
+    assert _read_hash_md5(zb) == h
+
+
+def test_read_hash_md5_missing_file():
+    from worker.tasks.ingest import _read_hash_md5
+    zb = _make_zip([], hash_md5_content=None)
+    assert _read_hash_md5(zb) is None
+
+
+def test_read_hash_md5_falls_back_to_last_file():
+    from worker.tasks.ingest import _read_hash_md5
+    # ZIP without hash.md5, last file is a manifest with an md5 hex string
+    h = "9" * 32
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("1.json", json.dumps({"bill": {"bill_id": 1}}).encode())
+        zf.writestr("zz_manifest", h.encode())  # last file, no .md5 name
+    assert _read_hash_md5(buf.getvalue()) == h
+
+
+def test_read_hash_md5_invalid_returns_none():
+    from worker.tasks.ingest import _read_hash_md5
+    zb = _make_zip([], hash_md5_content=b"not-a-real-hash\n")
+    assert _read_hash_md5(zb) is None
+
+
+def test_zip_cache_roundtrip(_zip_cache_tmpdir):
+    from worker.tasks.ingest import _load_cached_zip, _save_cached_zip
+    assert _load_cached_zip(42) is None
+    _save_cached_zip(42, b"payload")
+    assert _load_cached_zip(42) == b"payload"
+
+
+async def test_ingest_seeds_from_cached_zip_skips_download(_zip_cache_tmpdir):
+    from worker.tasks.ingest import ingest_all_states, _save_cached_zip
+
+    api_hash = "c" * 32
+    bill = {
+        "bill_id": 50, "bill_number": "HB-50", "title": "Cached",
+        "session": {"session_name": "2024A"}, "texts": [],
+    }
+    cached_zip = _make_zip([bill], hash_md5_content=api_hash.encode())
+    _save_cached_zip(7, cached_zip)
+
+    mock_client = AsyncMock()
+    mock_client.get_dataset_list.return_value = [
+        {"session_id": 7, "state": "CO", "access_key": "k", "dataset_hash": api_hash}
+    ]
+    mock_cache = AsyncMock()
+
+    hash_miss = MagicMock(); hash_miss.scalar.return_value = None
+    bill_result = MagicMock(); bill_result.scalar_one_or_none.return_value = None
+    upsert_result = MagicMock()
+    mock_session = AsyncMock()
+    mock_session.execute.side_effect = [hash_miss, bill_result, upsert_result]
+    mock_session.add = MagicMock()
+    mock_session.flush = AsyncMock()
+    mock_session.commit = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("worker.tasks.ingest.LegiScanClient", return_value=mock_client), \
+         patch("worker.tasks.ingest.RedisCache", return_value=mock_cache), \
+         patch("worker.tasks.ingest.async_session", return_value=mock_session):
+        await ingest_all_states()
+
+    mock_client.get_dataset.assert_not_called()
+    assert mock_session.execute.call_count == 3
+
+
+async def test_ingest_warns_on_cached_vs_stored_divergence(_zip_cache_tmpdir, caplog):
+    from worker.tasks.ingest import ingest_all_states, _save_cached_zip
+
+    stored_hash = "d" * 32
+    cached_hash = "e" * 32  # different from stored
+    api_hash = "f" * 32     # different from both — forces download
+    bill = {
+        "bill_id": 51, "bill_number": "HB-51", "title": "Diverge",
+        "session": {"session_name": "2024A"}, "texts": [],
+    }
+    cached_zip = _make_zip([bill], hash_md5_content=cached_hash.encode())
+    _save_cached_zip(8, cached_zip)
+    fresh_zip = _make_zip([bill], hash_md5_content=api_hash.encode())
+
+    mock_client = AsyncMock()
+    mock_client.get_dataset_list.return_value = [
+        {"session_id": 8, "state": "CO", "access_key": "k", "dataset_hash": api_hash}
+    ]
+    mock_client.get_dataset.return_value = fresh_zip
+    mock_cache = AsyncMock()
+
+    hash_hit = MagicMock(); hash_hit.scalar.return_value = stored_hash
+    bill_result = MagicMock(); bill_result.scalar_one_or_none.return_value = None
+    upsert_result = MagicMock()
+    mock_session = AsyncMock()
+    mock_session.execute.side_effect = [hash_hit, bill_result, upsert_result]
+    mock_session.add = MagicMock()
+    mock_session.flush = AsyncMock()
+    mock_session.commit = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+
+    with caplog.at_level(logging.WARNING, logger="worker.tasks.ingest"), \
+         patch("worker.tasks.ingest.LegiScanClient", return_value=mock_client), \
+         patch("worker.tasks.ingest.RedisCache", return_value=mock_cache), \
+         patch("worker.tasks.ingest.async_session", return_value=mock_session):
+        await ingest_all_states()
+
+    assert any("diverges from stored hash" in r.message for r in caplog.records)
+    mock_client.get_dataset.assert_called_once_with(8, "k")
+
+
+async def test_ingest_aborts_dataset_on_fresh_zip_hash_mismatch(_zip_cache_tmpdir, caplog):
+    from worker.tasks.ingest import ingest_all_states
+
+    api_hash = "1" * 32
+    zip_internal_hash = "2" * 32  # corruption: ZIP says different hash than API
+    bill = {
+        "bill_id": 60, "bill_number": "HB-60", "title": "Corrupt",
+        "session": {"session_name": "2024A"}, "texts": [],
+    }
+    fresh_zip = _make_zip([bill], hash_md5_content=zip_internal_hash.encode())
+
+    mock_client = AsyncMock()
+    mock_client.get_dataset_list.return_value = [
+        {"session_id": 9, "state": "TX", "access_key": "k", "dataset_hash": api_hash}
+    ]
+    mock_client.get_dataset.return_value = fresh_zip
+    mock_cache = AsyncMock()
+
+    hash_miss = MagicMock(); hash_miss.scalar.return_value = None
+    mock_session = AsyncMock()
+    mock_session.execute.side_effect = [hash_miss]
+    mock_session.add = MagicMock()
+    mock_session.flush = AsyncMock()
+    mock_session.commit = AsyncMock()
+    mock_session.rollback = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("worker.tasks.ingest.LegiScanClient", return_value=mock_client), \
+         patch("worker.tasks.ingest.RedisCache", return_value=mock_cache), \
+         patch("worker.tasks.ingest.async_session", return_value=mock_session):
+        await ingest_all_states()
+
+    mock_session.rollback.assert_awaited_once()
+    mock_session.commit.assert_not_called()
+
+
+async def test_ingest_skips_non_int_session_id(_zip_cache_tmpdir, caplog):
+    from worker.tasks.ingest import ingest_all_states
+
+    mock_client = AsyncMock()
+    mock_client.get_dataset_list.return_value = [
+        {"session_id": "../../etc/passwd", "state": "??", "access_key": "k", "dataset_hash": "x" * 32}
+    ]
+    mock_cache = AsyncMock()
+    mock_session = AsyncMock()
+    mock_session.execute = AsyncMock()
+    mock_session.rollback = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+
+    with caplog.at_level(logging.WARNING, logger="worker.tasks.ingest"), \
+         patch("worker.tasks.ingest.LegiScanClient", return_value=mock_client), \
+         patch("worker.tasks.ingest.RedisCache", return_value=mock_cache), \
+         patch("worker.tasks.ingest.async_session", return_value=mock_session):
+        await ingest_all_states()
+
+    mock_client.get_dataset.assert_not_called()
+    mock_session.execute.assert_not_called()
+    assert any("non-int session_id" in r.message for r in caplog.records)
 
 
 async def test_ingest_skips_dataset_with_missing_schema_keys():
