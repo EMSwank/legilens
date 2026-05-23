@@ -93,10 +93,15 @@ async def _acquire_zip(client, session_id: int, state: str, current_hash: str,
 
     zip_bytes = await client.get_dataset(session_id, access_key)
     fresh_md5 = _read_hash_md5(zip_bytes)
-    if fresh_md5 is not None and fresh_md5 != current_hash:
-        logger.warning(
-            "dataset session_id=%s state=%s: fresh ZIP hash.md5 %s != API dataset_hash %s",
-            session_id, state, fresh_md5, current_hash,
+    if fresh_md5 is None:
+        logger.info(
+            "dataset session_id=%s state=%s: no parseable hash.md5 manifest in fresh ZIP",
+            session_id, state,
+        )
+    elif fresh_md5 != current_hash:
+        raise ValueError(
+            f"dataset session_id={session_id} state={state}: fresh ZIP hash.md5 "
+            f"{fresh_md5} != API dataset_hash {current_hash}"
         )
     _save_cached_zip(session_id, zip_bytes)
     return zip_bytes
@@ -112,6 +117,12 @@ async def ingest_all_states():
                 session_id = ds.get("session_id")
                 state = ds.get("state", "?")
                 try:
+                    if not isinstance(session_id, int):
+                        logger.warning(
+                            "dataset has non-int session_id=%r state=%s, skipping",
+                            session_id, state,
+                        )
+                        continue
                     current_hash = ds["dataset_hash"]
                     access_key = ds["access_key"]
 
