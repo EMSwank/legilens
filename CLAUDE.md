@@ -56,7 +56,7 @@ To quantify the "Friction Gap" in the Colorado General Assembly by analyzing the
 | Sprint 2 | FastAPI read-only API, Pydantic v2 schemas, rate limiting, 56 tests | ✅ Merged to main |
 | Sprint 3 | Next.js 16 frontend, WCAG 2.1 AA, TanStack Query, Playwright E2E | ✅ Merged to main |
 | Sprint 4 | Railway/Vercel deploy config, sessions endpoint, tag_type filter, /about + /accessibility + /tags pages, dashboard session dropdown + filter chips | ✅ Merged to main (PRs #12–#16) |
-| Post-MVP | Ingest hardening: Postgres-backed dataset dedup (PR #35), API-key redaction in logs (PRs #36–#37) merged; local ZIP cache + hash.md5 manifest enforcement (PR #39) open | 🔄 In progress |
+| Post-MVP | Ingest hardening: Postgres-backed dataset dedup (PR #35), API-key redaction in logs (PRs #36–#37), local ZIP cache + hash.md5 manifest enforcement (PR #39). Worker Railway Volume mounted at `/data/zip_cache` with `LEGISCAN_ZIP_CACHE_DIR` env var. | ✅ Merged to main |
 
 ## **6\. Architecture**
 

@@ -65,6 +65,13 @@ MVP shipped — deployed on Railway (backend) + Vercel (frontend). Post-MVP modu
 | Sprint 2 | FastAPI endpoints, Pydantic schemas, rate limiting | ✅ Complete |
 | Sprint 3 | Next.js frontend, WCAG 2.1 AA, Playwright E2E | ✅ Complete |
 | Sprint 4 | Deployment (Railway + Vercel), /about, /tags, /accessibility, filter chips | ✅ Complete |
+| Post-MVP | Ingest hardening: Postgres-backed dataset dedup, API-key log redaction, local ZIP cache with `hash.md5` manifest enforcement (Railway Volume) | ✅ Complete |
+
+### Post-MVP — what shipped
+
+- LegiScan dataset dedup state persisted in Postgres so worker restarts no longer re-download all 50 state archives
+- LegiScan API key redacted from all worker log lines (including non-string args), with a loud failure mode when the key is locked
+- Worker caches each downloaded ZIP to `/data/zip_cache` on a Railway Volume; on cold start, reads `hash.md5` inside the archive and skips `getDataset` when the manifest matches the API hash; fresh-ZIP manifest mismatch is now a hard error, not a warning
 
 ### Sprint 4 — what shipped
 
