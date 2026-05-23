@@ -87,6 +87,8 @@ LegiScan API → backend/worker/ → Neon Postgres → backend/app/ (FastAPI) �
 - Dataset dedup truth lives in the `dataset_hashes` Postgres table (PR #35). The worker also caches each ZIP at `$LEGISCAN_ZIP_CACHE_DIR/<session_id>.zip` and reads `hash.md5` inside to (a) seed the DB row on cold start without an extra `getDataset` call and (b) refuse to ingest a fresh ZIP whose internal manifest disagrees with the API `dataset_hash` (PR #39). Prod requires a persistent volume mounted at the cache path; ephemeral disk silently defeats cross-restart caching.
 - `ingest_all_states` opens a fresh `async_session` per dataset (PR #41) — Neon drops idle connections during the sync `_parse_dataset_zip` phase, which would hang the next `session.execute`.
 - Cold-start pipeline is two-pass (PR #42): pass 1 ingests CO only so the live site shows data within minutes; pass 2 ingests the remaining 49 states and runs match + evidence against the full corpus. `match_co_bills` deletes existing CO `ISTScore`/`SimilarityMatch` rows at entry to stay idempotent across nightly + bootstrap reruns.
+- `run_full_pipeline` calls `getDatasetList` exactly once per run and passes the result into both ingest passes — LegiScan datasets refresh weekly, duplicate calls within a run are pure quota waste.
+- Bootstrap debounce lives in the Postgres `worker_state` table (TTL 7 days), not Redis. Redis is ephemeral on Railway by default; losing the debounce key is exactly what triggers a full 50-state re-download. PR #35 already moved dataset dedup off Redis for the same reason.
 
 ### Frontend (Sprints 3 + 4)
 

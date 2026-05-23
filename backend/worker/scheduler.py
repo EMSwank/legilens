@@ -1,24 +1,26 @@
 import asyncio
 import logging
 import signal
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
-import redis.asyncio as aioredis
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.config import settings
 from app.database import async_session
 from app.logging_filters import RedactAPIKeyFilter
 from app.models.bill import Bill
+from app.models.worker_state import WorkerState
+from app.services.legiscan import LegiScanClient
 from worker.tasks.evidence import extract_all_pending_evidence
 from worker.tasks.ingest import ingest_all_states
 from worker.tasks.match import match_co_bills
 
 logger = logging.getLogger(__name__)
 
-BOOTSTRAP_DEBOUNCE_KEY = "worker:bootstrap:last_run"
-BOOTSTRAP_DEBOUNCE_TTL = 3600
+BOOTSTRAP_DEBOUNCE_KEY = "bootstrap:last_run"
+BOOTSTRAP_DEBOUNCE = timedelta(days=7)
 
 
 async def _run_match_and_evidence() -> bool:
@@ -40,21 +42,35 @@ async def run_full_pipeline() -> bool:
     quickly, then ingest the remaining 49 states and run match + evidence
     against the full corpus.
 
+    The LegiScan dataset list is fetched once and passed into both ingest
+    passes — calling getDatasetList twice per run is wasted API quota
+    (datasets refresh weekly per LegiScan docs).
+
     Pass 1 deliberately skips match + evidence: with an empty corpus the only
     output would be stub ISTScore rows that pass 2 would have to overwrite,
     and the bill list endpoint outerjoins ISTScore so CO bills render fine
     without a score row.
     """
+    client = LegiScanClient(api_key=settings.legiscan_api_key)
+    try:
+        try:
+            datasets = await client.get_dataset_list()
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception("getDatasetList failed; aborting pipeline run")
+            return False
+    finally:
+        await client.close()
+
     logger.info("Pipeline start (pass=1): ingesting CO only for fast visibility")
     try:
-        await ingest_all_states(only_state="CO")
+        await ingest_all_states(only_state="CO", datasets=datasets)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.exception("CO ingest failed; aborting pipeline run")
         return False
 
     logger.info("Pipeline (pass=2): ingesting remaining states for full corpus")
     try:
-        await ingest_all_states()
+        await ingest_all_states(datasets=datasets)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.exception("Full corpus ingest failed; aborting pipeline run")
         return False
@@ -73,19 +89,28 @@ async def _db_is_empty() -> bool:
 
 
 async def _bootstrap_recently_ran() -> bool:
-    redis = aioredis.from_url(settings.redis_url)
-    try:
-        return (await redis.get(BOOTSTRAP_DEBOUNCE_KEY)) is not None
-    finally:
-        await redis.aclose()
+    """Postgres-backed debounce. Survives Redis restarts and ephemeral disk —
+    losing this check is exactly what burns a 50-dataset API run."""
+    cutoff = datetime.now(timezone.utc) - BOOTSTRAP_DEBOUNCE
+    async with async_session() as session:
+        result = await session.execute(
+            select(WorkerState.updated_at).where(WorkerState.key == BOOTSTRAP_DEBOUNCE_KEY)
+        )
+        last_run = result.scalar()
+    return last_run is not None and last_run > cutoff
 
 
 async def _mark_bootstrap_ran() -> None:
-    redis = aioredis.from_url(settings.redis_url)
-    try:
-        await redis.setex(BOOTSTRAP_DEBOUNCE_KEY, BOOTSTRAP_DEBOUNCE_TTL, b"1")
-    finally:
-        await redis.aclose()
+    async with async_session() as session:
+        await session.execute(
+            pg_insert(WorkerState)
+            .values(key=BOOTSTRAP_DEBOUNCE_KEY)
+            .on_conflict_do_update(
+                index_elements=["key"],
+                set_={"updated_at": func.now()},
+            )
+        )
+        await session.commit()
 
 
 async def _bootstrap_pipeline() -> None:
@@ -99,8 +124,8 @@ async def _bootstrap_if_empty(scheduler: AsyncIOScheduler) -> None:
         return
     if await _bootstrap_recently_ran():
         logger.info(
-            "Bootstrap ran within last %ss — skipping to avoid LegiScan re-fetch.",
-            BOOTSTRAP_DEBOUNCE_TTL,
+            "Bootstrap ran within last %s — skipping to avoid LegiScan re-fetch.",
+            BOOTSTRAP_DEBOUNCE,
         )
         return
     scheduler.add_job(
