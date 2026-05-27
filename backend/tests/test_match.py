@@ -6,7 +6,7 @@ from uuid import uuid4
 from app.services.minhash import compute_minhash
 
 async def test_match_writes_similarity_match_row():
-    from worker.tasks.match import _find_matches_for_bill
+    from worker.tasks.match import _find_matches_for_bill, CorpusIndex
 
     identical_text = "The commission shall establish fees not to exceed one hundred dollars per application submitted to the board."
     co_bill_id = uuid4()
@@ -19,22 +19,23 @@ async def test_match_writes_similarity_match_row():
     mock_session.add = MagicMock()
     mock_session.commit = AsyncMock()
 
-    corpus_entries = [(corpus_bill_id, "TX", "HB-1", corpus_m)]
-    await _find_matches_for_bill(mock_session, co_bill_id, co_m, corpus_entries)
+    index = CorpusIndex()
+    index.add(corpus_bill_id, "TX", "HB-1", corpus_m)
+
+    await _find_matches_for_bill(mock_session, co_bill_id, co_m, index)
 
     mock_session.add.assert_called()
 
 async def test_no_match_writes_score_of_100():
-    from worker.tasks.match import _find_matches_for_bill
+    from worker.tasks.match import _find_matches_for_bill, CorpusIndex
 
     co_m = compute_minhash("Completely unique Colorado bill text with no parallels anywhere.")
-    corpus_entries = []
 
     mock_session = AsyncMock()
     mock_session.add = MagicMock()
     mock_session.commit = AsyncMock()
 
-    await _find_matches_for_bill(mock_session, uuid4(), co_m, corpus_entries)
+    await _find_matches_for_bill(mock_session, uuid4(), co_m, CorpusIndex())
 
     added = [call.args[0] for call in mock_session.add.call_args_list]
     from app.models.ist_score import ISTScore
@@ -44,7 +45,7 @@ async def test_no_match_writes_score_of_100():
     assert scores[0].copycat_alert is False
 
 async def test_below_threshold_corpus_produces_no_match():
-    from worker.tasks.match import _find_matches_for_bill
+    from worker.tasks.match import _find_matches_for_bill, CorpusIndex
     from app.models.similarity_match import SimilarityMatch
     from app.models.ist_score import ISTScore
 
@@ -55,8 +56,9 @@ async def test_below_threshold_corpus_produces_no_match():
     mock_session.add = MagicMock()
     mock_session.commit = AsyncMock()
 
-    corpus_entries = [(uuid4(), "TX", "HB-1", corpus_m)]
-    await _find_matches_for_bill(mock_session, uuid4(), co_m, corpus_entries)
+    index = CorpusIndex()
+    index.add(uuid4(), "TX", "HB-1", corpus_m)
+    await _find_matches_for_bill(mock_session, uuid4(), co_m, index)
 
     added = [call.args[0] for call in mock_session.add.call_args_list]
     assert not any(isinstance(a, SimilarityMatch) for a in added)
@@ -66,7 +68,7 @@ async def test_below_threshold_corpus_produces_no_match():
     assert scores[0].copycat_alert is False
 
 async def test_identical_match_sets_copycat_alert():
-    from worker.tasks.match import _find_matches_for_bill
+    from worker.tasks.match import _find_matches_for_bill, CorpusIndex
     from app.models.ist_score import ISTScore
 
     identical_text = "The commission shall establish fees not to exceed one hundred dollars per application submitted to the board."
@@ -77,8 +79,9 @@ async def test_identical_match_sets_copycat_alert():
     mock_session.add = MagicMock()
     mock_session.commit = AsyncMock()
 
-    corpus_entries = [(uuid4(), "TX", "HB-1", corpus_m)]
-    await _find_matches_for_bill(mock_session, uuid4(), co_m, corpus_entries)
+    index = CorpusIndex()
+    index.add(uuid4(), "TX", "HB-1", corpus_m)
+    await _find_matches_for_bill(mock_session, uuid4(), co_m, index)
 
     added = [call.args[0] for call in mock_session.add.call_args_list]
     scores = [a for a in added if isinstance(a, ISTScore)]

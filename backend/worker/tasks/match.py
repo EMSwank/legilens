@@ -51,10 +51,9 @@ async def match_co_bills():
             .join(Bill, Bill.id == MinHashSignature.bill_id)
             .where(Bill.is_corpus_only.is_(True))
         )
-        corpus_entries = [
-            (bill.id, bill.state, bill.bill_number, minhash_from_signature(sig.signature))
-            for sig, bill in corpus_result
-        ]
+        corpus = CorpusIndex()
+        for sig, bill in corpus_result:
+            corpus.add(bill.id, bill.state, bill.bill_number, minhash_from_signature(sig.signature))
 
         co_result = await session.execute(
             select(MinHashSignature, Bill)
@@ -63,10 +62,10 @@ async def match_co_bills():
         )
         for sig, co_bill in co_result:
             co_m = minhash_from_signature(sig.signature)
-            await _find_matches_for_bill(session, co_bill.id, co_m, corpus_entries)
+            await _find_matches_for_bill(session, co_bill.id, co_m, corpus)
 
-async def _find_matches_for_bill(session, co_bill_id: UUID, co_m, corpus_entries: list):
-    if not corpus_entries:
+async def _find_matches_for_bill(session, co_bill_id: UUID, co_m, corpus: "CorpusIndex"):
+    if len(corpus) == 0:
         score = ISTScore(
             bill_id=co_bill_id,
             source_authenticity_score=Decimal("100.00"),
@@ -76,8 +75,10 @@ async def _find_matches_for_bill(session, co_bill_id: UUID, co_m, corpus_entries
         await session.commit()
         return
 
+    candidates = corpus.query(co_m)
+
     max_similarity = Decimal("0.00")
-    for corpus_bill_id, corpus_state, _, corpus_m in corpus_entries:
+    for corpus_bill_id, corpus_state, _, corpus_m in candidates:
         sim = Decimal(str(round(jaccard_estimate(co_m, corpus_m) * 100, 2)))
         if sim < Decimal("70.00"):
             continue
