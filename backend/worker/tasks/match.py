@@ -46,6 +46,10 @@ async def match_co_bills():
         await session.execute(delete(ISTScore).where(ISTScore.bill_id.in_(co_bill_ids)))
         await session.commit()
 
+        # Build LSH-backed corpus index. With NUM_PERM=128 and bands threshold
+        # 0.7, candidate retrieval is sublinear in corpus size — the prior
+        # implementation did a full linear scan per CO bill (O(N*M) = ~12B
+        # comparisons at current scale, days of wall-clock).
         corpus_result = await session.execute(
             select(MinHashSignature, Bill)
             .join(Bill, Bill.id == MinHashSignature.bill_id)

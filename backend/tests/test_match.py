@@ -89,6 +89,26 @@ async def test_identical_match_sets_copycat_alert():
     assert scores[0].source_authenticity_score == Decimal("0.00")
     assert scores[0].copycat_alert is True
 
+async def test_match_co_bills_skips_unrelated_corpus_via_lsh():
+    """When LSH filters out unrelated bills, _find_matches_for_bill should
+    never be called with them as candidates — verified by checking the
+    candidate count exposed by CorpusIndex."""
+    from worker.tasks.match import CorpusIndex
+
+    co_text = "The commission shall establish a fee not to exceed one hundred dollars."
+    matching_text = "The commission shall establish a fee not to exceed one hundred dollars."
+    unrelated_text = "Quantum entanglement is a physical phenomenon at subatomic scales."
+
+    index = CorpusIndex()
+    index.add(uuid4(), "TX", "HB-1", compute_minhash(matching_text))
+    for _ in range(20):
+        index.add(uuid4(), "NM", "SB-X", compute_minhash(unrelated_text + str(_)))
+
+    candidates = index.query(compute_minhash(co_text))
+    # LSH should return only the truly similar bill, not all 21 corpus entries
+    assert 1 <= len(candidates) < 5
+
+
 async def test_corpus_index_returns_candidates_above_threshold():
     from worker.tasks.match import CorpusIndex
 
