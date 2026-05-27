@@ -89,7 +89,7 @@ LegiScan API → backend/worker/ → Neon Postgres → backend/app/ (FastAPI) �
 - Cold-start pipeline is two-pass (PR #42): pass 1 ingests CO only so the live site shows data within minutes; pass 2 ingests the remaining 49 states and runs match + evidence against the full corpus. `match_co_bills` deletes existing CO `ISTScore`/`SimilarityMatch` rows at entry to stay idempotent across nightly + bootstrap reruns.
 - `run_full_pipeline` calls `getDatasetList` exactly once per run and passes the result into both ingest passes — LegiScan datasets refresh weekly, duplicate calls within a run are pure quota waste.
 - Bootstrap debounce lives in the Postgres `worker_state` table (TTL 7 days), not Redis. Redis is ephemeral on Railway by default; losing the debounce key is exactly what triggers a full 50-state re-download. PR #35 already moved dataset dedup off Redis for the same reason.
-- `match_co_bills` uses `CorpusIndex` (LSH wrapper) for candidate retrieval — never iterate the full corpus per CO bill. The bands threshold in `build_lsh()` (0.7) matches our 70% Jaccard match cutoff; raising one without the other breaks the invariant that LSH candidates are a superset of real matches.
+- `match_co_bills` uses `CorpusIndex` (LSH wrapper) for candidate retrieval — never iterate the full corpus per CO bill. The LSH threshold in `build_lsh()` must be **≤** the match-phase Jaccard cutoff (70%), and `weights=(0.1, 0.9)` biases band/row selection toward recall so candidates are a strict superset of real matches. Setting the LSH threshold equal to the match cutoff with default weights silently drops ~56% of matches at the boundary — verified in `test_corpus_index_recalls_near_threshold_match`.
 
 ### Frontend (Sprints 3 + 4)
 

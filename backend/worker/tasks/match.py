@@ -1,3 +1,5 @@
+import logging
+import time
 from decimal import Decimal
 from uuid import UUID
 from sqlalchemy import delete, select
@@ -9,14 +11,18 @@ from app.models.ist_score import ISTScore
 from app.services.minhash import minhash_from_signature, jaccard_estimate, build_lsh
 from datasketch import MinHash
 
+logger = logging.getLogger(__name__)
+
 
 class CorpusIndex:
     """LSH-backed lookup over corpus MinHash signatures.
 
     LSH bucketing makes candidate retrieval sublinear in corpus size. The
-    bands threshold (0.7) is set in build_lsh() to match our 70% Jaccard
-    match threshold. False negatives at the boundary are possible but rare
-    with NUM_PERM=128.
+    LSH threshold (0.7) is calibrated with weights=(0.1, 0.9) in build_lsh()
+    so that candidates are a SUPERSET of true matches above the 70% Jaccard
+    cutoff (~92% recall at s=0.70, ~100% above s=0.80). The exact 70% filter
+    in _find_matches_for_bill is the precision gate. NUM_PERM=128 controls
+    variance, not recall rate.
     """
 
     def __init__(self):
@@ -50,6 +56,7 @@ async def match_co_bills():
         # 0.7, candidate retrieval is sublinear in corpus size — the prior
         # implementation did a full linear scan per CO bill (O(N*M) = ~12B
         # comparisons at current scale, days of wall-clock).
+        t_index_start = time.monotonic()
         corpus_result = await session.execute(
             select(MinHashSignature, Bill)
             .join(Bill, Bill.id == MinHashSignature.bill_id)
@@ -58,7 +65,13 @@ async def match_co_bills():
         corpus = CorpusIndex()
         for sig, bill in corpus_result:
             corpus.add(bill.id, bill.state, bill.bill_number, minhash_from_signature(sig.signature))
+        logger.info(
+            "match: built LSH corpus index with %d bills in %.2fs",
+            len(corpus), time.monotonic() - t_index_start,
+        )
 
+        t_match_start = time.monotonic()
+        co_count = 0
         co_result = await session.execute(
             select(MinHashSignature, Bill)
             .join(Bill, Bill.id == MinHashSignature.bill_id)
@@ -67,6 +80,11 @@ async def match_co_bills():
         for sig, co_bill in co_result:
             co_m = minhash_from_signature(sig.signature)
             await _find_matches_for_bill(session, co_bill.id, co_m, corpus)
+            co_count += 1
+        logger.info(
+            "match: scored %d CO bills against corpus in %.2fs",
+            co_count, time.monotonic() - t_match_start,
+        )
 
 async def _find_matches_for_bill(session, co_bill_id: UUID, co_m, corpus: "CorpusIndex"):
     if len(corpus) == 0:

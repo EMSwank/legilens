@@ -129,3 +129,35 @@ async def test_corpus_index_returns_candidates_above_threshold():
     candidate_ids = {c[0] for c in candidates}
     assert matching_id in candidate_ids
     assert unrelated_id not in candidate_ids
+
+
+async def test_corpus_index_recalls_near_threshold_match():
+    """LSH must return candidates at Jaccard ~0.75, not only identical texts.
+
+    Guards against the recall regression caused by default LSH weights
+    (b=14,r=9 → ~44% recall at s=0.70). With weights=(0.1,0.9) → b=20,r=6 →
+    ~92% recall at s=0.70."""
+    from worker.tasks.match import CorpusIndex
+    from app.services.minhash import jaccard_estimate
+
+    # Two texts sharing most of their 5-grams (high but not identical Jaccard).
+    # Jaccard ~0.71 — sits squarely in the zone where default weights (b=14,r=9)
+    # give 0% recall in practice; biased weights (b=20,r=6) give ~100% recall.
+    base = "no person shall operate a vehicle without a valid license issued by the department of motor vehicles"
+    variant = "no person shall operate a motor vehicle without a valid license issued by the state department"
+
+    co_m = compute_minhash(base)
+    corpus_m = compute_minhash(variant)
+
+    # Verify fixture Jaccard is in the target near-threshold range
+    sim = jaccard_estimate(co_m, corpus_m)
+    assert 0.65 <= sim <= 0.95, f"test fixture Jaccard out of range: {sim}"
+
+    index = CorpusIndex()
+    near_id = uuid4()
+    index.add(near_id, "TX", "HB-1", corpus_m)
+
+    candidates = index.query(co_m)
+    assert near_id in {c[0] for c in candidates}, (
+        f"LSH dropped a Jaccard={sim:.2f} match — recall regression"
+    )
