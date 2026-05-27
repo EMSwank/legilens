@@ -23,4 +23,11 @@ def minhash_from_signature(signature: list[int]) -> MinHash:
     return m
 
 def build_lsh() -> MinHashLSH:
-    return MinHashLSH(threshold=LSH_THRESHOLD, num_perm=NUM_PERM)
+    # weights=(false_positive_weight, false_negative_weight). Biased toward
+    # minimizing false negatives so LSH candidates are a superset of real
+    # matches above the 70% cutoff. With default (0.5, 0.5) and threshold=0.7,
+    # the S-curve inflection sits at ~0.75 and misses ~56% of matches at
+    # exactly s=0.70. (0.1, 0.9) shifts band/row selection toward recall:
+    # ~92% recall at s=0.70, ~98% at s=0.75, ~100% at s>=0.80. The exact
+    # 70% filter in match.py:_find_matches_for_bill is the precision gate.
+    return MinHashLSH(threshold=LSH_THRESHOLD, num_perm=NUM_PERM, weights=(0.1, 0.9))
