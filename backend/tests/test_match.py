@@ -85,3 +85,24 @@ async def test_identical_match_sets_copycat_alert():
     assert len(scores) == 1
     assert scores[0].source_authenticity_score == Decimal("0.00")
     assert scores[0].copycat_alert is True
+
+async def test_corpus_index_returns_candidates_above_threshold():
+    from worker.tasks.match import CorpusIndex
+
+    identical_text = "The commission shall establish fees not to exceed one hundred dollars per application submitted to the board."
+    unrelated_text = "Quantum entanglement is a physical phenomenon at subatomic scales."
+
+    co_m = compute_minhash(identical_text)
+    matching_m = compute_minhash(identical_text)
+    unrelated_m = compute_minhash(unrelated_text)
+
+    index = CorpusIndex()
+    matching_id = uuid4()
+    unrelated_id = uuid4()
+    index.add(matching_id, "TX", "HB-1", matching_m)
+    index.add(unrelated_id, "NM", "SB-9", unrelated_m)
+
+    candidates = index.query(co_m)
+    candidate_ids = {c[0] for c in candidates}
+    assert matching_id in candidate_ids
+    assert unrelated_id not in candidate_ids

@@ -6,7 +6,34 @@ from app.models.bill import Bill
 from app.models.minhash_signature import MinHashSignature
 from app.models.similarity_match import SimilarityMatch
 from app.models.ist_score import ISTScore
-from app.services.minhash import minhash_from_signature, jaccard_estimate
+from app.services.minhash import minhash_from_signature, jaccard_estimate, build_lsh
+from datasketch import MinHash
+
+
+class CorpusIndex:
+    """LSH-backed lookup over corpus MinHash signatures.
+
+    LSH bucketing makes candidate retrieval sublinear in corpus size. The
+    bands threshold (0.7) is set in build_lsh() to match our 70% Jaccard
+    match threshold. False negatives at the boundary are possible but rare
+    with NUM_PERM=128.
+    """
+
+    def __init__(self):
+        self._lsh = build_lsh()
+        self._lookup: dict[str, tuple] = {}
+
+    def add(self, bill_id, state: str, bill_number: str, m: MinHash) -> None:
+        key = str(bill_id)
+        self._lsh.insert(key, m)
+        self._lookup[key] = (bill_id, state, bill_number, m)
+
+    def query(self, m: MinHash) -> list[tuple]:
+        return [self._lookup[k] for k in self._lsh.query(m) if k in self._lookup]
+
+    def __len__(self) -> int:
+        return len(self._lookup)
+
 
 async def match_co_bills():
     async with async_session() as session:
