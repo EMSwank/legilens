@@ -23,18 +23,42 @@ class CorpusIndex:
     cutoff (~92% recall at s=0.70, ~100% above s=0.80). The exact 70% filter
     in _find_matches_for_bill is the precision gate. NUM_PERM=128 controls
     variance, not recall rate.
+
+    Memory: each entry holds the MinHash (1024 B of uint64 hashvalues) in
+    the lookup plus the LSH band hashtables. At the deployed corpus scale
+    (~750k-1M bills) the index resident set is ~1.5-3 GB. The Railway
+    worker container must have headroom; if memory becomes the binding
+    constraint, switch query() to a streaming corpus pattern (drop the
+    MinHash refs after LSH insertion, re-deserialize candidate sigs from
+    DB on demand).
+
+    Duplicate keys: datasketch MinHashLSH.insert raises ValueError on
+    duplicate keys. The DB schema does not enforce uniqueness on
+    MinHashSignature.bill_id (ingest can produce duplicate signature rows
+    if a bill is re-processed), so add() drops the duplicate with a
+    warning instead of letting the entire match phase crash. Callers that
+    want the freshest signature should pre-filter with
+    `DISTINCT ON (bill_id) ... ORDER BY bill_id, computed_at DESC`.
     """
 
     def __init__(self):
         self._lsh = build_lsh()
-        self._lookup: dict[str, tuple] = {}
+        self._lookup: dict[str, tuple[UUID, str, str, MinHash]] = {}
 
-    def add(self, bill_id, state: str, bill_number: str, m: MinHash) -> None:
+    def add(self, bill_id: UUID, state: str, bill_number: str, m: MinHash) -> None:
         key = str(bill_id)
+        if key in self._lookup:
+            logger.warning(
+                "CorpusIndex.add: duplicate bill_id=%s (state=%s number=%s); "
+                "keeping first signature, dropping duplicate. Fix the ingest "
+                "dedup or the corpus query DISTINCT ON to avoid this.",
+                bill_id, state, bill_number,
+            )
+            return
         self._lsh.insert(key, m)
         self._lookup[key] = (bill_id, state, bill_number, m)
 
-    def query(self, m: MinHash) -> list[tuple]:
+    def query(self, m: MinHash) -> list[tuple[UUID, str, str, MinHash]]:
         return [self._lookup[k] for k in self._lsh.query(m) if k in self._lookup]
 
     def __len__(self) -> int:
@@ -57,10 +81,18 @@ async def match_co_bills():
         # implementation did a full linear scan per CO bill (O(N*M) = ~12B
         # comparisons at current scale, days of wall-clock).
         t_index_start = time.monotonic()
+        # DISTINCT ON (bill_id) + ORDER BY computed_at DESC defends against
+        # ingest producing duplicate MinHashSignature rows per bill — without
+        # this, MinHashLSH.insert would raise on the second occurrence and
+        # crash the whole match phase. CorpusIndex.add also has a defensive
+        # duplicate guard, but skipping duplicates at the query level means
+        # we always load the freshest signature, not the first one.
         corpus_result = await session.execute(
             select(MinHashSignature, Bill)
             .join(Bill, Bill.id == MinHashSignature.bill_id)
             .where(Bill.is_corpus_only.is_(True))
+            .distinct(MinHashSignature.bill_id)
+            .order_by(MinHashSignature.bill_id, MinHashSignature.computed_at.desc())
         )
         corpus = CorpusIndex()
         for sig, bill in corpus_result:
@@ -72,10 +104,15 @@ async def match_co_bills():
 
         t_match_start = time.monotonic()
         co_count = 0
+        # Same DISTINCT ON guard for the CO side: duplicate signatures per CO
+        # bill would double-score the bill (extra SimilarityMatch rows and a
+        # wrong final ISTScore from re-running max_similarity).
         co_result = await session.execute(
             select(MinHashSignature, Bill)
             .join(Bill, Bill.id == MinHashSignature.bill_id)
             .where(Bill.is_corpus_only.is_(False))
+            .distinct(MinHashSignature.bill_id)
+            .order_by(MinHashSignature.bill_id, MinHashSignature.computed_at.desc())
         )
         for sig, co_bill in co_result:
             co_m = minhash_from_signature(sig.signature)
@@ -86,7 +123,7 @@ async def match_co_bills():
             co_count, time.monotonic() - t_match_start,
         )
 
-async def _find_matches_for_bill(session, co_bill_id: UUID, co_m, corpus: "CorpusIndex"):
+async def _find_matches_for_bill(session, co_bill_id: UUID, co_m, corpus: CorpusIndex):
     if len(corpus) == 0:
         score = ISTScore(
             bill_id=co_bill_id,
