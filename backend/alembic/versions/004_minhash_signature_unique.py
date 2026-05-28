@@ -28,6 +28,7 @@ def upgrade():
 
 
 def downgrade():
+    # Duplicate signatures deleted by upgrade() are not recoverable via downgrade.
     op.execute(
         "ALTER TABLE minhash_signatures DROP CONSTRAINT IF EXISTS uq_minhash_signatures_bill_id"
     )

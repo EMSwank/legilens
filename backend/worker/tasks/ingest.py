@@ -218,12 +218,13 @@ async def _process_bill(session, cache, bill: dict, state: str) -> None:
         return
 
     m = compute_minhash(text)
+    sig = m.hashvalues.tolist()
     await session.execute(
         pg_insert(MinHashSignature)
-        .values(bill_id=db_bill.id, signature=m.hashvalues.tolist())
+        .values(bill_id=db_bill.id, signature=sig)
         .on_conflict_do_update(
             index_elements=["bill_id"],
-            set_={"signature": m.hashvalues.tolist(), "computed_at": func.now()},
+            set_={"signature": sig, "computed_at": func.now()},
         )
     )
     await session.commit()
