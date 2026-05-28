@@ -31,3 +31,6 @@ class SimilarityMatch(Base):
     matched_bill_url: Mapped[str | None] = mapped_column(Text)
     matched_snippets: Mapped[list | None] = mapped_column(JSONB)
     snippet_status: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
+    match_type: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="cross_state", server_default="cross_state"
+    )
