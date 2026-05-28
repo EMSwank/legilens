@@ -536,3 +536,67 @@ async def test_ingest_skips_dataset_with_missing_schema_keys():
 
     mock_session.rollback.assert_awaited_once()
     assert mock_session.execute.call_count == 3
+
+
+async def test_process_bill_extracts_doc_id_into_text_doc_id():
+    """doc_id from texts[-1] must land on the bill row so fetch_bill_texts can use it."""
+    from worker.tasks.ingest import _process_bill
+    from app.models.bill import Bill as BillModel
+    from unittest.mock import call
+
+    bill_record = {
+        "bill_id": 88001,
+        "state": "CO",
+        "session": {"session_name": "2026 Regular"},
+        "bill_number": "HB1001",
+        "title": "Test bill",
+        "texts": [{"doc_id": 555, "mime": "application/pdf", "url": "https://example.com"}],
+    }
+
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None
+    mock_session = AsyncMock()
+    mock_session.execute.return_value = mock_result
+    mock_session.flush = AsyncMock()
+    mock_session.commit = AsyncMock()
+    mock_session.add = MagicMock()
+    mock_cache = AsyncMock()
+
+    await _process_bill(mock_session, mock_cache, bill_record, "CO")
+
+    # The Bill instance passed to session.add should have text_doc_id=555
+    added = mock_session.add.call_args[0][0]
+    assert isinstance(added, BillModel)
+    assert added.text_doc_id == 555
+    assert added.text_fetch_status == "queued"
+    assert added.full_text is None
+
+
+async def test_process_bill_sets_queued_status_when_no_inline_text():
+    """Bills with only doc_id (no inline doc) must have text_fetch_status='queued'."""
+    from worker.tasks.ingest import _process_bill
+    from app.models.bill import Bill as BillModel
+
+    bill_record = {
+        "bill_id": 88002,
+        "state": "TX",
+        "session": {"session_name": "2026 Regular"},
+        "bill_number": "SB999",
+        "title": "Another bill",
+        "texts": [{"doc_id": 777}],
+    }
+
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None
+    mock_session = AsyncMock()
+    mock_session.execute.return_value = mock_result
+    mock_session.flush = AsyncMock()
+    mock_session.commit = AsyncMock()
+    mock_session.add = MagicMock()
+    mock_cache = AsyncMock()
+
+    await _process_bill(mock_session, mock_cache, bill_record, "TX")
+
+    added = mock_session.add.call_args[0][0]
+    assert added.text_doc_id == 777
+    assert added.text_fetch_status == "queued"

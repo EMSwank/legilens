@@ -178,6 +178,12 @@ def _parse_dataset_zip(zip_bytes: bytes) -> list[dict]:
 
 
 def _extract_text(bill: dict) -> str | None:
+    """Extracts inline base64 doc from a dataset ZIP bill record.
+
+    Returns None in the production case — LegiScan dataset ZIPs contain
+    text references (doc_id, url) but not inline base64 `doc`. Kept for
+    backward compatibility and for sample data where inline text may exist.
+    """
     texts = bill.get("texts", [])
     if not texts:
         return None
@@ -190,13 +196,26 @@ def _extract_text(bill: dict) -> str | None:
         return None
 
 
+def _extract_doc_id(bill: dict) -> int | None:
+    """Pulls the latest text doc_id so fetch_bill_texts can call getBillText later."""
+    texts = bill.get("texts", [])
+    if not texts:
+        return None
+    raw = texts[-1].get("doc_id")
+    try:
+        return int(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 async def _process_bill(session, cache, bill: dict, state: str) -> None:
     legiscan_id = bill.get("bill_id")
     if not legiscan_id:
         return
     state = bill.get("state") or state
     is_co = state == "CO"
-    text = _extract_text(bill)
+    inline_text = _extract_text(bill)  # almost always None in production
+    doc_id = _extract_doc_id(bill)
 
     existing = await session.execute(select(Bill).where(Bill.legiscan_id == legiscan_id))
     db_bill = existing.scalar_one_or_none()
@@ -208,16 +227,24 @@ async def _process_bill(session, cache, bill: dict, state: str) -> None:
             bill_number=bill.get("bill_number", ""),
             title=bill.get("title", ""),
             is_corpus_only=not is_co,
-            full_text=text if is_co else None,
+            full_text=inline_text if is_co else None,
+            text_doc_id=doc_id,
+            text_fetch_status="done" if inline_text else "queued",
         )
         session.add(db_bill)
         await session.flush()
+    else:
+        # Backfill: update doc_id on re-ingest (idempotent)
+        if doc_id is not None and db_bill.text_doc_id != doc_id:
+            db_bill.text_doc_id = doc_id
+        # Don't overturn a terminal status set by fetch_bill_texts
 
-    if not text:
+    if not inline_text:
         await session.commit()
         return
 
-    m = compute_minhash(text)
+    # Inline text path (rare — only when LegiScan includes base64 doc)
+    m = compute_minhash(inline_text)
     sig = m.hashvalues.tolist()
     await session.execute(
         pg_insert(MinHashSignature)
@@ -227,5 +254,6 @@ async def _process_bill(session, cache, bill: dict, state: str) -> None:
             set_={"signature": sig, "computed_at": func.now()},
         )
     )
+    db_bill.text_fetch_status = "done"
     await session.commit()
-    await cache.set_bill_text(legiscan_id, text)
+    await cache.set_bill_text(legiscan_id, inline_text)
