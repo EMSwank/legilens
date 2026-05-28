@@ -1,6 +1,6 @@
 from uuid import uuid4, UUID as PyUUID
 from datetime import datetime
-from sqlalchemy import String, Boolean, Text, DateTime
+from sqlalchemy import String, Boolean, Text, DateTime, Integer
 from sqlalchemy.dialects.postgresql import UUID as PgUUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
@@ -21,3 +21,7 @@ class Bill(Base):
     status: Mapped[str | None] = mapped_column(Text)
     is_corpus_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     last_updated: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    text_fetch_status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued", server_default="queued")
+    text_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    text_fetch_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    text_doc_id: Mapped[int | None] = mapped_column(Integer)
