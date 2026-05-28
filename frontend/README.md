@@ -30,8 +30,8 @@ NEXT_PUBLIC_API_URL=http://your-backend npm run dev
 npm run dev       # development server
 npm run build     # production build
 npm run start     # production server (requires prior build)
-npm test          # jest unit tests (42 tests)
-npm run e2e       # Playwright E2E (requires prior build locally)
+npm test          # jest unit tests (81 tests across 17 files)
+npm run e2e       # Playwright E2E (5 spec files; requires prior build locally)
 npm run lint      # ESLint
 ```
 
@@ -39,8 +39,11 @@ npm run lint      # ESLint
 
 ```
 app/
-  page.tsx              # dashboard — stats, bill list, search
+  page.tsx              # dashboard — stats, bill list, search, session dropdown, filter chips
   bills/[id]/page.tsx   # bill detail — IST gauge, matches, snippets
+  about/page.tsx        # methodology page with ShingleDiagram SVG
+  tags/page.tsx         # friction tag browser
+  accessibility/page.tsx # WCAG 2.1 AA accessibility statement
   layout.tsx            # root layout with skip link + query providers
   global-error.tsx      # root layout error boundary (Next.js 16)
   bills/[id]/error.tsx  # route-level error boundary
@@ -53,10 +56,21 @@ components/
   CopyButton.tsx        # journalist clipboard copy
   SearchInput.tsx       # debounced search with URL sync
   TagBadge.tsx          # friction tag pill
+  SessionDropdown.tsx   # CO session filter
+  FilterChips.tsx       # dismissible session/tag_type filter chips
+  PendingBanner.tsx     # match-phase-not-yet-run state
+  ShingleDiagram.tsx    # MinHash shingling proof-of-work SVG (/about)
+  BillHeader.tsx        # bill detail title + metadata
+  BillSidebar.tsx       # bill detail right rail
+  ProgressBar.tsx       # IST score visual
+  Providers.tsx         # TanStack Query client provider
 
 lib/
   api.ts                # typed fetch client
   types.ts              # TypeScript interfaces (mirrors backend Pydantic schemas)
+
+__tests__/              # 17 jest-axe unit test files (components/, lib/, pages/)
+e2e/                    # 5 Playwright spec files (dashboard, bill-detail, about, tags, filters)
 ```
 
 ## Key design decisions

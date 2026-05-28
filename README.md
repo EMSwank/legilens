@@ -12,7 +12,7 @@ Most legislative analysis tells you *what* a bill does. LegiLens tells you *wher
 
 The core question: When a Colorado bill is introduced, is it locally authored, or is it a copy-paste import from a national template written by a lobbying organization?
 
-**The Influence & Source Tracker (IST)** answers that. It computes cross-state text similarity across 50-state legislation using MinHash locality-sensitive hashing. When a Colorado bill shares >70% identical language with bills introduced in other states, it gets flagged.
+**The Influence & Source Tracker (IST)** answers that. It computes cross-state text similarity across 50-state legislation using MinHash locality-sensitive hashing (LSH bucketing for sublinear lookup). When a Colorado bill shares >70% identical language with bills introduced in other states, it gets flagged.
 
 That's not an opinion. That's a measurement.
 
@@ -21,7 +21,7 @@ That's not an opinion. That's a measurement.
 ## The modules
 
 **IST — Influence & Source Tracker** *(MVP)*
-Cross-state text reuse detection. Compares every Colorado bill against a national corpus of 190,000+ bills. Produces a Source Authenticity Score (0–100). Below 30 = copycat alert.
+Cross-state text reuse detection. Compares every Colorado bill against the full national LegiScan corpus (all 50 states, hundreds of thousands of bills, refreshed nightly). Produces a Source Authenticity Score (0–100). Below 30 = copycat alert.
 
 **SNP — Signal-to-Noise Processor** *(coming)*
 Measures how much committee and floor time gets spent on the actual bill versus campaign-style grandstanding. Quantifies the time-cost of performative politics.
@@ -66,6 +66,8 @@ MVP shipped — deployed on Railway (backend) + Vercel (frontend). Post-MVP modu
 | Sprint 3 | Next.js frontend, WCAG 2.1 AA, Playwright E2E | ✅ Complete |
 | Sprint 4 | Deployment (Railway + Vercel), /about, /tags, /accessibility, filter chips | ✅ Complete |
 | Post-MVP | Ingest hardening: Postgres-backed dataset dedup, API-key log redaction, local ZIP cache with `hash.md5` manifest enforcement (Railway Volume) | ✅ Complete |
+| Bootstrap & resilience | Fresh DB session per dataset, CO-first two-pass bootstrap, Postgres-backed bootstrap debounce, server-side state filter for pass=1 | ✅ Complete |
+| Match-phase perf & schema | LSH-backed sublinear match (sub-second corpus lookups), `UNIQUE` constraint + Postgres upsert on `minhash_signatures.bill_id` | ✅ Complete |
 
 ### Post-MVP — what shipped
 
@@ -75,6 +77,8 @@ MVP shipped — deployed on Railway (backend) + Vercel (frontend). Post-MVP modu
 - Worker opens a fresh DB session per dataset so Neon's idle-connection drop during sync ZIP parsing no longer hangs ingestion
 - Cold-start pipeline is two-pass: Colorado bills ingest first so the live site shows data within minutes; the remaining 49 states ingest in pass 2 and feed the full-corpus copycat-similarity match
 - Bootstrap debounce moved off ephemeral Redis into Postgres (7-day TTL); `getDatasetList` is called exactly once per pipeline run; LegiScan requests now identify the operator via User-Agent so the API team can reach out before locking the key
+- Match phase rewritten as an LSH-backed sublinear lookup (`MinHashLSH` with `weights=(0.1, 0.9)` for recall); candidate retrieval is now sub-second per CO bill even at full-corpus scale
+- `minhash_signatures.bill_id` enforced `UNIQUE` at the schema level; ingest writes via Postgres upsert (`ON CONFLICT DO UPDATE`) so re-ingest replaces signatures instead of stacking duplicates
 
 ### Sprint 4 — what shipped
 
