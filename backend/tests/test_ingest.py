@@ -47,7 +47,8 @@ async def test_process_bill_stores_signature():
 
     await _process_bill(mock_session, mock_cache, bill_data, "TX")
 
-    mock_session.add.assert_called()
+    # bill select + signature upsert
+    assert mock_session.execute.call_count == 2
     mock_cache.set_bill_text.assert_called_once_with(42, raw_text)
 
 async def test_process_bill_stores_bill_only_when_no_text():
@@ -135,6 +136,38 @@ async def test_process_bill_skips_insert_for_existing_bill():
     added = [call.args[0] for call in mock_session.add.call_args_list]
     assert not any(isinstance(a, Bill) for a in added)
 
+async def test_process_bill_upserts_signature_on_repeat():
+    """Second call for same bill_id must not raise — upsert replaces the signature."""
+    from worker.tasks.ingest import _process_bill
+
+    existing_bill = MagicMock()
+    existing_bill.id = uuid4()
+
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = existing_bill
+    sig_upsert_result = MagicMock()
+    mock_session = AsyncMock()
+    mock_session.execute.side_effect = [mock_result, sig_upsert_result]
+    mock_session.add = MagicMock()
+    mock_session.commit = AsyncMock()
+    mock_cache = AsyncMock()
+
+    raw_text = "The commission shall establish fees not to exceed one hundred dollars."
+    bill_data = {
+        "bill_id": 42,
+        "bill_number": "SB-1",
+        "title": "Existing Bill",
+        "session": {"session_name": "2024A"},
+        "texts": [{"doc": base64.b64encode(raw_text.encode()).decode()}],
+    }
+
+    await _process_bill(mock_session, mock_cache, bill_data, "CO")
+
+    # bill select + sig upsert — no session.add for MinHashSignature
+    assert mock_session.execute.call_count == 2
+    mock_session.add.assert_not_called()
+
+
 async def test_extract_text_returns_none_for_invalid_base64():
     from worker.tasks.ingest import _extract_text
 
@@ -195,9 +228,11 @@ async def test_ingest_downloads_changed_dataset():
     hash_result.scalar.return_value = "old_hash"
     bill_result = MagicMock()
     bill_result.scalar_one_or_none.return_value = None
-    upsert_result = MagicMock()
+    sig_upsert_result = MagicMock()
+    dataset_hash_upsert_result = MagicMock()
     mock_session = AsyncMock()
-    mock_session.execute.side_effect = [hash_result, bill_result, upsert_result]
+    # hash check, bill select, sig upsert, dataset_hash upsert
+    mock_session.execute.side_effect = [hash_result, bill_result, sig_upsert_result, dataset_hash_upsert_result]
     mock_session.add = MagicMock()
     mock_session.flush = AsyncMock()
     mock_session.commit = AsyncMock()
@@ -210,7 +245,7 @@ async def test_ingest_downloads_changed_dataset():
         await ingest_all_states()
 
     mock_client.get_dataset.assert_called_once_with(2, "xyz")
-    assert mock_session.execute.call_count == 3
+    assert mock_session.execute.call_count == 4
 
 
 async def test_ingest_continues_after_failed_dataset():
