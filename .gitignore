@@ -35,3 +35,6 @@ out/
 /backend/.coverage
 /backend/var/
 /frontend/test-results/*.json
+
+# Session handoff notes (ephemeral, not for version control)
+HANDOFF.md
