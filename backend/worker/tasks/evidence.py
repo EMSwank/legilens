@@ -18,6 +18,30 @@ def _add_kind_to_snippets(snippets: list[dict]) -> list[dict]:
     return [{"kind": "snippet", **snippet} for snippet in snippets]
 
 
+async def _fetch_text_via_api(bill: Bill, client: LegiScanClient) -> str | None:
+    """Two-step fallback: use stored text_doc_id if available, else discover via getBill.
+
+    Using the correct LegiScan endpoints:
+      1. getBillText(doc_id) → base64 body  (preferred — 1 API call)
+      2. getBill(bill_id) → texts[].doc_id, then getBillText(doc_id)  (2 calls, discovery path)
+    """
+    doc_id = bill.text_doc_id
+    if not doc_id:
+        try:
+            envelope = await client.get_bill(bill.legiscan_id)
+            texts = envelope.get("texts", [])
+            if texts:
+                doc_id = texts[-1].get("doc_id")
+        except Exception:  # pylint: disable=broad-exception-caught
+            return None
+    if not doc_id:
+        return None
+    try:
+        return await client.get_bill_text_by_doc_id(doc_id)
+    except Exception:  # pylint: disable=broad-exception-caught
+        return None
+
+
 async def extract_all_pending_evidence():
     client = LegiScanClient(api_key=settings.legiscan_api_key)
     cache = RedisCache(url=settings.redis_url)
@@ -37,15 +61,17 @@ async def _extract_evidence_for_match(session, match, cache, client):
     co_bill = await session.get(Bill, match.bill_id)
     corpus_bill = await session.get(Bill, match.matched_bill_id)
 
-    co_text = await cache.get_bill_text(co_bill.legiscan_id)
+    # CO bill: full_text set after fetch phase; fall back to cache then API
+    co_text = co_bill.full_text or await cache.get_bill_text(co_bill.legiscan_id)
     if not co_text:
-        co_text = await client.get_bill_text(co_bill.legiscan_id)
+        co_text = await _fetch_text_via_api(co_bill, client)
         if co_text:
             await cache.set_bill_text(co_bill.legiscan_id, co_text)
 
+    # Corpus bill: stored in cache from ingest; fall back to API on cache miss
     src_text = await cache.get_bill_text(corpus_bill.legiscan_id)
     if not src_text:
-        src_text = await client.get_bill_text(corpus_bill.legiscan_id)
+        src_text = await _fetch_text_via_api(corpus_bill, client)
         if src_text:
             await cache.set_bill_text(corpus_bill.legiscan_id, src_text)
 

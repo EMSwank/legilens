@@ -14,6 +14,7 @@ from app.models.bill import Bill
 from app.models.worker_state import WorkerState
 from app.services.legiscan import LegiScanClient
 from worker.tasks.evidence import extract_all_pending_evidence
+from worker.tasks.fetch_bill_texts import fetch_bill_texts
 from worker.tasks.ingest import ingest_all_states
 from worker.tasks.match import match_co_bills
 
@@ -21,6 +22,20 @@ logger = logging.getLogger(__name__)
 
 BOOTSTRAP_DEBOUNCE_KEY = "bootstrap:last_run"
 BOOTSTRAP_DEBOUNCE = timedelta(days=7)
+
+
+async def fetch_and_match() -> None:
+    """Daily steady-state: fetch ~1k queued bill texts then run match phase.
+
+    Runs after run_full_pipeline (03:00). Quota guard inside fetch_bill_texts
+    prevents overrun even if called extra times.
+    """
+    logger.info("fetch_and_match: start")
+    count = await fetch_bill_texts(batch_size=1000)
+    logger.info("fetch_and_match: fetched %d bills", count)
+    if count > 0:
+        await match_co_bills()
+    logger.info("fetch_and_match: done")
 
 
 async def _run_match_and_evidence() -> bool:
@@ -149,8 +164,21 @@ async def _bootstrap_if_empty(scheduler: AsyncIOScheduler) -> None:
 async def _main() -> None:
     scheduler = AsyncIOScheduler()
     scheduler.add_job(run_full_pipeline, "cron", hour=3, minute=0, id="nightly")
+    scheduler.add_job(
+        fetch_and_match,
+        "cron",
+        hour=4,
+        minute=0,
+        id="fetch_and_match",
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+    )
     scheduler.start()
-    logger.info("Scheduler started. Nightly run at 03:00 %s.", scheduler.timezone)
+    logger.info(
+        "Scheduler started. Nightly ingest at 03:00, fetch_and_match at 04:00 %s.",
+        scheduler.timezone,
+    )
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
