@@ -227,3 +227,26 @@ async def test_bootstrap_pipeline_skips_mark_on_failure():
         await scheduler._bootstrap_pipeline()
 
     mark.assert_not_called()
+
+
+async def test_fetch_and_match_runs_fetch_then_match():
+    from worker.scheduler import fetch_and_match
+    from unittest.mock import patch, AsyncMock
+
+    with patch("worker.scheduler.fetch_bill_texts", new=AsyncMock(return_value=42)) as fetch, \
+         patch("worker.scheduler.match_co_bills", new=AsyncMock()) as match:
+        await fetch_and_match()
+
+    fetch.assert_awaited_once_with(batch_size=1000)
+    match.assert_awaited_once()
+
+
+async def test_fetch_and_match_skips_match_when_zero_fetched():
+    from worker.scheduler import fetch_and_match
+    from unittest.mock import patch, AsyncMock
+
+    with patch("worker.scheduler.fetch_bill_texts", new=AsyncMock(return_value=0)), \
+         patch("worker.scheduler.match_co_bills", new=AsyncMock()) as match:
+        await fetch_and_match()
+
+    match.assert_not_awaited()
