@@ -58,14 +58,50 @@ class LegiScanClient:
             raise ValueError(f"getDataset decoded bytes are not a zip: {zip_bytes[:200]!r}")
         return zip_bytes
 
-    async def get_bill_text(self, bill_id: int) -> str | None:
-        """Fetches individual bill text. Phase 3 Pro API calls only — not used in Phase 1."""
-        resp = await self._http.get("/", params={"key": self.api_key, "op": "getBill", "id": bill_id})
+    async def get_bill(self, bill_id: int) -> dict:
+        """Fetches bill metadata + text doc references via op=getBill.
+
+        Returns the full bill envelope. The `texts` array contains text
+        doc records — `doc_id`, `date`, `mime`, `url`, `state_link`,
+        `text_size`, `text_hash` — but NOT inline base64. Use
+        get_bill_text_by_doc_id with the latest texts[-1]["doc_id"] to
+        retrieve the actual document body.
+
+        Raises ValueError on non-OK status from LegiScan.
+        """
+        resp = await self._http.get(
+            "/",
+            params={"key": self.api_key, "op": "getBill", "id": bill_id},
+        )
         resp.raise_for_status()
-        texts = resp.json().get("bill", {}).get("texts", [])
-        if not texts:
+        payload = resp.json()
+        if payload.get("status") != "OK":
+            raise ValueError(f"getBill returned non-OK status: {payload!r}")
+        return payload.get("bill") or {}
+
+    async def get_bill_text_by_doc_id(self, doc_id: int) -> str | None:
+        """Fetches bill text by LegiScan doc_id via op=getBillText.
+
+        Returns the decoded UTF-8 text body, or None if the response
+        contains no `doc` or decode fails. Raises ValueError on
+        non-OK API status (caller decides retry policy).
+        """
+        resp = await self._http.get(
+            "/",
+            params={"key": self.api_key, "op": "getBillText", "id": doc_id},
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        if payload.get("status") != "OK":
+            raise ValueError(f"getBillText returned non-OK status: {payload!r}")
+        text_record = payload.get("text") or {}
+        encoded = text_record.get("doc")
+        if not encoded:
             return None
-        return texts[-1].get("doc")
+        try:
+            return base64.b64decode(encoded).decode("utf-8")
+        except (binascii.Error, UnicodeDecodeError):
+            return None
 
     async def close(self):
         await self._http.aclose()

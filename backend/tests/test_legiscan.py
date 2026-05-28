@@ -85,26 +85,62 @@ async def test_get_dataset_raises_when_decoded_not_zip(client):
         with pytest.raises(ValueError, match="not a zip"):
             await client.get_dataset(2243, "abc123")
 
-async def test_get_bill_text_returns_text(client):
-    mock_response = {"status": "OK", "bill": {"texts": [{"doc": "The bill text here."}]}}
+async def test_get_bill_returns_envelope(client):
+    mock_response = {
+        "status": "OK",
+        "bill": {"bill_id": 12345, "texts": [{"doc_id": 999}]},
+    }
     with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
         mock_get.return_value.json = MagicMock(return_value=mock_response)
         mock_get.return_value.raise_for_status = lambda: None
-        result = await client.get_bill_text(12345)
-    assert result == "The bill text here."
+        bill = await client.get_bill(12345)
+    assert bill["bill_id"] == 12345
+    assert bill["texts"][0]["doc_id"] == 999
 
-async def test_get_bill_text_returns_none_when_no_texts(client):
-    mock_response = {"status": "OK", "bill": {"texts": []}}
+
+async def test_get_bill_raises_on_non_ok(client):
+    payload = {"status": "ERROR", "alert": {"message": "Bill not found"}}
+    with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value.json = MagicMock(return_value=payload)
+        mock_get.return_value.raise_for_status = lambda: None
+        with pytest.raises(ValueError, match="getBill returned non-OK"):
+            await client.get_bill(12345)
+
+
+async def test_get_bill_text_by_doc_id_decodes_base64(client):
+    import base64 as b64
+    body = "Be it enacted by the General Assembly..."
+    encoded = b64.b64encode(body.encode("utf-8")).decode("ascii")
+    mock_response = {"status": "OK", "text": {"doc_id": 999, "doc": encoded}}
     with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
         mock_get.return_value.json = MagicMock(return_value=mock_response)
         mock_get.return_value.raise_for_status = lambda: None
-        result = await client.get_bill_text(99)
+        result = await client.get_bill_text_by_doc_id(999)
+    assert result == body
+
+
+async def test_get_bill_text_by_doc_id_returns_none_on_empty_doc(client):
+    mock_response = {"status": "OK", "text": {"doc_id": 999, "doc": ""}}
+    with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value.json = MagicMock(return_value=mock_response)
+        mock_get.return_value.raise_for_status = lambda: None
+        result = await client.get_bill_text_by_doc_id(999)
     assert result is None
 
-async def test_get_bill_text_returns_none_when_doc_is_none(client):
-    mock_response = {"status": "OK", "bill": {"texts": [{"doc": None}]}}
+
+async def test_get_bill_text_by_doc_id_returns_none_on_decode_error(client):
+    mock_response = {"status": "OK", "text": {"doc_id": 999, "doc": "not-valid-base64!@#"}}
     with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
         mock_get.return_value.json = MagicMock(return_value=mock_response)
         mock_get.return_value.raise_for_status = lambda: None
-        result = await client.get_bill_text(12345)
+        result = await client.get_bill_text_by_doc_id(999)
     assert result is None
+
+
+async def test_get_bill_text_by_doc_id_raises_on_non_ok(client):
+    payload = {"status": "ERROR", "alert": {"message": "Doc not found"}}
+    with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value.json = MagicMock(return_value=payload)
+        mock_get.return_value.raise_for_status = lambda: None
+        with pytest.raises(ValueError, match="getBillText returned non-OK"):
+            await client.get_bill_text_by_doc_id(999)
