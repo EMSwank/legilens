@@ -147,6 +147,7 @@ async def _find_matches_for_bill(session, co_bill_id: UUID, co_m, corpus: Corpus
             matched_state=corpus_state,
             similarity_score=sim,
             snippet_status="pending",
+            match_type="co_internal" if corpus_state == "CO" else "cross_state",
         )
         session.add(match)
         max_similarity = max(max_similarity, sim)
