@@ -144,3 +144,87 @@ async def test_get_bill_text_by_doc_id_raises_on_non_ok(client):
         mock_get.return_value.raise_for_status = lambda: None
         with pytest.raises(ValueError, match="getBillText returned non-OK"):
             await client.get_bill_text_by_doc_id(999)
+
+
+async def test_get_bill_doc_returns_billdoc_with_mime(client):
+    import base64 as b64
+    from app.services.legiscan import BillDoc
+
+    body = b"%PDF-1.4 minimal pdf bytes"
+    encoded = b64.b64encode(body).decode("ascii")
+    mock_response = {
+        "status": "OK",
+        "text": {"doc_id": 999, "doc": encoded, "mime": "application/pdf"},
+    }
+    with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value.json = MagicMock(return_value=mock_response)
+        mock_get.return_value.raise_for_status = lambda: None
+        result = await client.get_bill_doc(999)
+    assert isinstance(result, BillDoc)
+    assert result.raw == body
+    assert result.mime == "application/pdf"
+
+
+async def test_get_bill_doc_defaults_mime_to_empty_when_absent(client):
+    import base64 as b64
+    from app.services.legiscan import BillDoc
+
+    body = b"some bytes"
+    encoded = b64.b64encode(body).decode("ascii")
+    mock_response = {"status": "OK", "text": {"doc_id": 999, "doc": encoded}}
+    with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value.json = MagicMock(return_value=mock_response)
+        mock_get.return_value.raise_for_status = lambda: None
+        result = await client.get_bill_doc(999)
+    assert isinstance(result, BillDoc)
+    assert result.mime == ""
+
+
+async def test_get_bill_doc_returns_none_on_empty_doc(client):
+    mock_response = {"status": "OK", "text": {"doc_id": 999, "doc": ""}}
+    with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value.json = MagicMock(return_value=mock_response)
+        mock_get.return_value.raise_for_status = lambda: None
+        result = await client.get_bill_doc(999)
+    assert result is None
+
+
+async def test_get_bill_doc_raises_on_non_ok(client):
+    payload = {"status": "ERROR", "alert": {"message": "Doc not found"}}
+    with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value.json = MagicMock(return_value=payload)
+        mock_get.return_value.raise_for_status = lambda: None
+        with pytest.raises(ValueError, match="getBillText returned non-OK"):
+            await client.get_bill_doc(999)
+
+
+async def test_get_bill_text_by_doc_id_extracts_pdf(client):
+    """Wrapper composition get_bill_doc -> extract_text on a REAL PDF.
+
+    This is the only test that proves the evidence.py 'free fix' actually
+    decodes PDFs. The doc field is the base64 of the minimal text-bearing PDF
+    verified against pypdf 6.12.2.
+    """
+    pdf_b64 = (
+        "JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2Jq"
+        "CjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2Jq"
+        "CjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIg"
+        "NzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4g"
+        "Pj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCA3NyA+PgpzdHJlYW0KQlQgL0YxIDI0IFRm"
+        "IDcyIDcwMCBUZCAoQmUgaXQgZW5hY3RlZCBieSB0aGUgR2VuZXJhbCBBc3NlbWJseSBMZWdpTGVu"
+        "cykgVGogRVQKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8IC9UeXBlIC9Gb250IC9TdWJ0eXBl"
+        "IC9UeXBlMSAvQmFzZUZvbnQgL0hlbHZldGljYSA+PgplbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAw"
+        "MCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgniAKMDAwMDAw"
+        "MDExNSAwMDAwMCBuIAowMDAwMDAwMjQxIDAwMDAwIG4gCjAwMDAwMDAzNjggMDAwMDAgniAKdHJh"
+        "aWxlcgo8PCAvU2l6ZSA2IC9Sb290IDEgMCBSID4+CnN0YXJ0eHJlZgo0MzgKJSVFT0Y="
+    )
+    mock_response = {
+        "status": "OK",
+        "text": {"doc_id": 999, "doc": pdf_b64, "mime": "application/pdf"},
+    }
+    with patch.object(client._http, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value.json = MagicMock(return_value=mock_response)
+        mock_get.return_value.raise_for_status = lambda: None
+        result = await client.get_bill_text_by_doc_id(999)
+    assert result is not None
+    assert "enacted" in result
