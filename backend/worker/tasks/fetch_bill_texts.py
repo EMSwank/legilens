@@ -27,6 +27,7 @@ from app.models.bill import Bill
 from app.models.minhash_signature import MinHashSignature
 from app.services.legiscan import LegiScanClient
 from app.services.minhash import compute_minhash
+from app.services.text_extraction import extract_text
 from worker.queue import next_queued_bills
 from worker.quota import get_quota_used, increment_quota, reset_quota_if_month_rolled
 
@@ -85,12 +86,19 @@ async def _fetch_one(client: LegiScanClient, bill_summary: Bill) -> str:
     legiscan_id = bill_summary.legiscan_id
 
     # API call OUTSIDE the DB transaction
-    decoded_text: str | None = None
+    text: str | None = None
     failure: str | None = None
     try:
-        decoded_text = await client.get_bill_text_by_doc_id(doc_id)
-        if not decoded_text:
+        doc = await client.get_bill_doc(doc_id)
+        text = extract_text(doc.raw, doc.mime) if doc else None
+        if not text:
             failure = "permanent"
+            logger.warning(
+                "fetch %d (doc=%d): no text from mime=%s → permanent",
+                legiscan_id,
+                doc_id,
+                doc.mime if doc else "<none>",
+            )
     except httpx.HTTPStatusError as exc:
         status = exc.response.status_code
         if status == 429 or 500 <= status < 600:
@@ -117,11 +125,11 @@ async def _fetch_one(client: LegiScanClient, bill_summary: Bill) -> str:
 
         if failure is None:
             # Success path
-            bill.full_text = decoded_text
+            bill.full_text = text
             bill.text_fetched_at = datetime.now(tz=timezone.utc)
             bill.text_fetch_status = "done"
 
-            mh = compute_minhash(decoded_text)
+            mh = compute_minhash(text)
             sig = mh.hashvalues.tolist()
             await session.execute(
                 pg_insert(MinHashSignature)

@@ -63,8 +63,12 @@ async def test_success_path_calls_legiscan_and_commits():
     per_bill_cm.__aenter__ = AsyncMock(return_value=per_bill_session)
     per_bill_cm.__aexit__ = AsyncMock(return_value=False)
 
+    from app.services.legiscan import BillDoc
+
     fake_legiscan = AsyncMock()
-    fake_legiscan.get_bill_text_by_doc_id = AsyncMock(return_value="Be it enacted...")
+    fake_legiscan.get_bill_doc = AsyncMock(
+        return_value=BillDoc(raw=b"Be it enacted...", mime="text/plain")
+    )
     fake_legiscan.close = AsyncMock()
 
     call_count = 0
@@ -79,7 +83,7 @@ async def test_success_path_calls_legiscan_and_commits():
         result = await fetch_bill_texts(batch_size=10)
 
     assert result == 1
-    fake_legiscan.get_bill_text_by_doc_id.assert_awaited_once_with(999)
+    fake_legiscan.get_bill_doc.assert_awaited_once_with(999)
     per_bill_session.commit.assert_awaited()
 
 
@@ -98,14 +102,14 @@ async def test_quota_guard_aborts_when_at_limit():
     cm.__aexit__ = AsyncMock(return_value=False)
 
     fake_legiscan = AsyncMock()
-    fake_legiscan.get_bill_text_by_doc_id = AsyncMock()
+    fake_legiscan.get_bill_doc = AsyncMock()
 
     with patch("worker.tasks.fetch_bill_texts.async_session", return_value=cm), \
          patch("worker.tasks.fetch_bill_texts.LegiScanClient", return_value=fake_legiscan):
         result = await fetch_bill_texts(batch_size=10)
 
     assert result == 0
-    fake_legiscan.get_bill_text_by_doc_id.assert_not_awaited()
+    fake_legiscan.get_bill_doc.assert_not_awaited()
 
 
 async def test_empty_doc_is_permanent_failure():
@@ -121,7 +125,7 @@ async def test_empty_doc_is_permanent_failure():
     per_bill_cm.__aexit__ = AsyncMock(return_value=False)
 
     fake_legiscan = AsyncMock()
-    fake_legiscan.get_bill_text_by_doc_id = AsyncMock(return_value=None)
+    fake_legiscan.get_bill_doc = AsyncMock(return_value=None)
     fake_legiscan.close = AsyncMock()
 
     call_count = 0
@@ -154,7 +158,7 @@ async def test_third_failure_escalates_to_skipped():
     per_bill_cm.__aexit__ = AsyncMock(return_value=False)
 
     fake_legiscan = AsyncMock()
-    fake_legiscan.get_bill_text_by_doc_id = AsyncMock(return_value=None)
+    fake_legiscan.get_bill_doc = AsyncMock(return_value=None)
     fake_legiscan.close = AsyncMock()
 
     call_count = 0
@@ -187,7 +191,7 @@ async def test_transient_5xx_requeues_does_not_set_failed():
     err_response = MagicMock()
     err_response.status_code = 503
     fake_legiscan = AsyncMock()
-    fake_legiscan.get_bill_text_by_doc_id = AsyncMock(
+    fake_legiscan.get_bill_doc = AsyncMock(
         side_effect=httpx.HTTPStatusError("503", request=MagicMock(), response=err_response)
     )
     fake_legiscan.close = AsyncMock()
@@ -205,4 +209,41 @@ async def test_transient_5xx_requeues_does_not_set_failed():
 
     assert result == 0  # transient = not terminal
     assert bill.text_fetch_status == "queued"
+    assert bill.text_fetch_attempts == 1
+
+
+async def test_pdf_garbage_is_permanent_failure():
+    from app.services.legiscan import BillDoc
+
+    bill = _make_bill(attempts=0)
+    session_cm, _ = _make_db_stack([bill])
+
+    per_bill_session = AsyncMock()
+    per_bill_session.commit = AsyncMock()
+    per_bill_session.get = AsyncMock(return_value=bill)
+    per_bill_session.execute = AsyncMock(return_value=MagicMock())
+    per_bill_cm = AsyncMock()
+    per_bill_cm.__aenter__ = AsyncMock(return_value=per_bill_session)
+    per_bill_cm.__aexit__ = AsyncMock(return_value=False)
+
+    fake_legiscan = AsyncMock()
+    # application/pdf mime but the bytes are not a parseable PDF -> extract_text None
+    fake_legiscan.get_bill_doc = AsyncMock(
+        return_value=BillDoc(raw=b"not a pdf", mime="application/pdf")
+    )
+    fake_legiscan.close = AsyncMock()
+
+    call_count = 0
+
+    def _session_factory():
+        nonlocal call_count
+        call_count += 1
+        return session_cm if call_count == 1 else per_bill_cm
+
+    with patch("worker.tasks.fetch_bill_texts.async_session", side_effect=_session_factory), \
+         patch("worker.tasks.fetch_bill_texts.LegiScanClient", return_value=fake_legiscan):
+        result = await fetch_bill_texts(batch_size=10)
+
+    assert result == 1  # terminal outcome
+    assert bill.text_fetch_status == "failed"
     assert bill.text_fetch_attempts == 1
