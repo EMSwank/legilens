@@ -230,6 +230,10 @@ async def test_precision_gate_drops_lsh_candidate_below_70_percent_jaccard():
 
 
 async def test_match_type_is_co_internal_when_corpus_state_is_co():
+    # NOTE: hand-builds a "CO" corpus entry, which the production corpus query
+    # (Bill.is_corpus_only.is_(True) in match_co_bills) can never produce — CO
+    # bills are is_corpus_only=False. This exercises the ternary branch in
+    # isolation; NOT end-to-end coverage of a reachable production path.
     from worker.tasks.match import _find_matches_for_bill, CorpusIndex
     from app.models.similarity_match import SimilarityMatch
 
@@ -244,7 +248,7 @@ async def test_match_type_is_co_internal_when_corpus_state_is_co():
     mock_session.add = MagicMock()
     mock_session.commit = AsyncMock()
 
-    # Use "CO" state to ensure internal match calculation
+    # Synthetic CO corpus entry — see NOTE above; unreachable in production.
     index = CorpusIndex()
     index.add(corpus_bill_id, "CO", "HB-1", corpus_m)
 
