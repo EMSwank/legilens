@@ -227,3 +227,61 @@ async def test_precision_gate_drops_lsh_candidate_below_70_percent_jaccard():
     assert len(scores) == 1
     assert scores[0].source_authenticity_score == Decimal("100.00")
     assert scores[0].copycat_alert is False
+
+
+async def test_match_type_is_co_internal_when_corpus_state_is_co():
+    # NOTE: hand-builds a "CO" corpus entry, which the production corpus query
+    # (Bill.is_corpus_only.is_(True) in match_co_bills) can never produce — CO
+    # bills are is_corpus_only=False. This exercises the ternary branch in
+    # isolation; NOT end-to-end coverage of a reachable production path.
+    from worker.tasks.match import _find_matches_for_bill, CorpusIndex
+    from app.models.similarity_match import SimilarityMatch
+
+    identical_text = "The commission shall establish fees not to exceed one hundred dollars per application submitted to the board."
+    co_bill_id = uuid4()
+    corpus_bill_id = uuid4()
+
+    co_m = compute_minhash(identical_text)
+    corpus_m = compute_minhash(identical_text)
+
+    mock_session = AsyncMock()
+    mock_session.add = MagicMock()
+    mock_session.commit = AsyncMock()
+
+    # Synthetic CO corpus entry — see NOTE above; unreachable in production.
+    index = CorpusIndex()
+    index.add(corpus_bill_id, "CO", "HB-1", corpus_m)
+
+    await _find_matches_for_bill(mock_session, co_bill_id, co_m, index)
+
+    added = [call.args[0] for call in mock_session.add.call_args_list]
+    matches = [a for a in added if isinstance(a, SimilarityMatch)]
+    assert len(matches) == 1
+    assert matches[0].match_type == "co_internal"
+
+
+async def test_match_type_is_cross_state_when_corpus_state_is_not_co():
+    from worker.tasks.match import _find_matches_for_bill, CorpusIndex
+    from app.models.similarity_match import SimilarityMatch
+
+    identical_text = "The commission shall establish fees not to exceed one hundred dollars per application submitted to the board."
+    co_bill_id = uuid4()
+    corpus_bill_id = uuid4()
+
+    co_m = compute_minhash(identical_text)
+    corpus_m = compute_minhash(identical_text)
+
+    mock_session = AsyncMock()
+    mock_session.add = MagicMock()
+    mock_session.commit = AsyncMock()
+
+    # Use "TX" state to ensure cross-state match calculation
+    index = CorpusIndex()
+    index.add(corpus_bill_id, "TX", "HB-1", corpus_m)
+
+    await _find_matches_for_bill(mock_session, co_bill_id, co_m, index)
+
+    added = [call.args[0] for call in mock_session.add.call_args_list]
+    matches = [a for a in added if isinstance(a, SimilarityMatch)]
+    assert len(matches) == 1
+    assert matches[0].match_type == "cross_state"
