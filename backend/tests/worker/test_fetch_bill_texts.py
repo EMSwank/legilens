@@ -212,7 +212,8 @@ async def test_transient_5xx_requeues_does_not_set_failed():
     assert bill.text_fetch_attempts == 1
 
 
-async def test_pdf_garbage_is_permanent_failure():
+async def test_pdf_garbage_is_permanent_failure(caplog):
+    import logging
     from app.services.legiscan import BillDoc
 
     bill = _make_bill(attempts=0)
@@ -240,10 +241,48 @@ async def test_pdf_garbage_is_permanent_failure():
         call_count += 1
         return session_cm if call_count == 1 else per_bill_cm
 
-    with patch("worker.tasks.fetch_bill_texts.async_session", side_effect=_session_factory), \
+    with caplog.at_level(logging.WARNING, logger="worker.tasks.fetch_bill_texts"), \
+         patch("worker.tasks.fetch_bill_texts.async_session", side_effect=_session_factory), \
          patch("worker.tasks.fetch_bill_texts.LegiScanClient", return_value=fake_legiscan):
         result = await fetch_bill_texts(batch_size=10)
 
     assert result == 1  # terminal outcome
     assert bill.text_fetch_status == "failed"
     assert bill.text_fetch_attempts == 1
+    # The mime must appear in the warning — this was the original blind spot
+    assert "application/pdf" in caplog.text
+
+
+async def test_none_doc_logs_none_mime_on_permanent_failure(caplog):
+    """When get_bill_doc returns None the warning log shows mime=<none>."""
+    import logging
+
+    bill = _make_bill(attempts=0)
+    session_cm, _ = _make_db_stack([bill])
+
+    per_bill_session = AsyncMock()
+    per_bill_session.commit = AsyncMock()
+    per_bill_session.get = AsyncMock(return_value=bill)
+    per_bill_session.execute = AsyncMock(return_value=MagicMock())
+    per_bill_cm = AsyncMock()
+    per_bill_cm.__aenter__ = AsyncMock(return_value=per_bill_session)
+    per_bill_cm.__aexit__ = AsyncMock(return_value=False)
+
+    fake_legiscan = AsyncMock()
+    fake_legiscan.get_bill_doc = AsyncMock(return_value=None)
+    fake_legiscan.close = AsyncMock()
+
+    call_count = 0
+
+    def _session_factory():
+        nonlocal call_count
+        call_count += 1
+        return session_cm if call_count == 1 else per_bill_cm
+
+    with caplog.at_level(logging.WARNING, logger="worker.tasks.fetch_bill_texts"), \
+         patch("worker.tasks.fetch_bill_texts.async_session", side_effect=_session_factory), \
+         patch("worker.tasks.fetch_bill_texts.LegiScanClient", return_value=fake_legiscan):
+        result = await fetch_bill_texts(batch_size=10)
+
+    assert result == 1
+    assert "<none>" in caplog.text
