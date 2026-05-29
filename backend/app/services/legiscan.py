@@ -1,10 +1,22 @@
 import base64
 import binascii
+from dataclasses import dataclass
 
 import httpx
 
+from app.services.text_extraction import extract_text
+
 LEGISCAN_BASE = "https://api.legiscan.com/"
 LEGISCAN_USER_AGENT = "legilens-worker/1.0 (+https://github.com/EMSwank/legilens)"
+
+
+@dataclass(frozen=True)
+class BillDoc:
+    """A decoded LegiScan document: base64-decoded bytes + declared mime."""
+
+    raw: bytes
+    mime: str
+
 
 class LegiScanClient:
     def __init__(self, api_key: str):
@@ -79,12 +91,15 @@ class LegiScanClient:
             raise ValueError(f"getBill returned non-OK status: {payload!r}")
         return payload.get("bill") or {}
 
-    async def get_bill_text_by_doc_id(self, doc_id: int) -> str | None:
-        """Fetches bill text by LegiScan doc_id via op=getBillText.
+    async def get_bill_doc(self, doc_id: int) -> BillDoc | None:
+        """Fetches a bill document by LegiScan doc_id via op=getBillText.
 
-        Returns the decoded UTF-8 text body, or None if the response
-        contains no `doc` or decode fails. Raises ValueError on
-        non-OK API status (caller decides retry policy).
+        Returns BillDoc(raw, mime) — base64-decoded bytes plus the declared
+        mime (e.g. "application/pdf", or "" when absent) — or None when the
+        response carries no `doc` or the base64 fails to decode. Raises
+        ValueError on non-OK API status (caller decides retry policy).
+
+        Does NOT interpret content; see app.services.text_extraction.extract_text.
         """
         resp = await self._http.get(
             "/",
@@ -99,9 +114,21 @@ class LegiScanClient:
         if not encoded:
             return None
         try:
-            return base64.b64decode(encoded).decode("utf-8")
-        except (binascii.Error, UnicodeDecodeError):
+            raw = base64.b64decode(encoded)
+        except binascii.Error:
             return None
+        return BillDoc(raw=raw, mime=text_record.get("mime") or "")
+
+    async def get_bill_text_by_doc_id(self, doc_id: int) -> str | None:
+        """Convenience wrapper: fetch a doc and extract plain text.
+
+        Returns extracted text (PDF via pypdf, or utf-8 for text mimes), or
+        None. Used by the evidence/snippet worker, which only needs text.
+        fetch_bill_texts._fetch_one calls get_bill_doc directly so it can log
+        the mime on a permanent failure.
+        """
+        doc = await self.get_bill_doc(doc_id)
+        return extract_text(doc.raw, doc.mime) if doc else None
 
     async def close(self):
         await self._http.aclose()
