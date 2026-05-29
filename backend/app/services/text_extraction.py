@@ -38,9 +38,10 @@ def extract_text(raw: bytes, mime: str) -> str | None:
 
 
 def _extract_pdf(raw: bytes) -> str | None:
+    # Any pypdf failure -> no text, never crash the batch.
     try:
         reader = PdfReader(io.BytesIO(raw))
         text = "\n".join(page.extract_text() or "" for page in reader.pages)
-    except Exception:  # noqa: BLE001 - any pypdf failure -> no text, never crash the batch
+    except Exception:  # pylint: disable=broad-exception-caught
         return None
     return text.strip() or None

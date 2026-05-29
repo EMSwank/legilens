@@ -18,7 +18,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install fastapi "sqlalchemy[asyncio]" asyncpg alembic pydantic pydantic-settings datasketch redis httpx apscheduler slowapi
+        pip install fastapi "sqlalchemy[asyncio]" asyncpg alembic pydantic pydantic-settings datasketch redis httpx apscheduler slowapi pypdf==6.12.2
         pip install pytest pytest-asyncio pytest-mock
     - name: Run tests
       env:
