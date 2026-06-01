@@ -108,7 +108,12 @@ async def _fetch_one(client: LegiScanClient, bill_summary: Bill) -> str:
         logger.warning(
             "fetch %d (doc=%d): HTTP %s → %s", legiscan_id, doc_id, status, failure
         )
-    except (httpx.ConnectError, httpx.ReadTimeout) as exc:
+    except (httpx.ConnectError, httpx.TimeoutException) as exc:
+        # httpx.TimeoutException is the base for ConnectTimeout, ReadTimeout,
+        # WriteTimeout, and PoolTimeout. The client configures connect/write/pool
+        # timeouts (legiscan.py), so all four can fire; catching only ReadTimeout
+        # let the other three propagate uncaught and abort the rest of the batch.
+        # ConnectError is a NetworkError (not a TimeoutException), so it stays.
         failure = "transient"
         logger.warning("fetch %d (doc=%d): network error → transient: %s", legiscan_id, doc_id, exc)
     except ValueError as exc:
