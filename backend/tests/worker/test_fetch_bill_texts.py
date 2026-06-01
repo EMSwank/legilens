@@ -31,7 +31,12 @@ def _make_db_stack(bills_in_queue):
 
     # First session: reset_quota_if_month_rolled + get_quota_used + next_queued_bills
     month_result = MagicMock()
-    month_result.scalar.return_value = "2026-05"  # same month → no reset
+    # Must equal the CURRENT UTC month so reset_quota_if_month_rolled takes the
+    # no-reset path (else it issues 2 extra execute() calls and exhausts the
+    # side_effect list below). Hardcoding a literal month silently breaks every
+    # test in this file the moment the real month rolls over.
+    from datetime import datetime, timezone
+    month_result.scalar.return_value = datetime.now(tz=timezone.utc).strftime("%Y-%m")
     quota_result = MagicMock()
     quota_result.scalar.return_value = "0"
     queue_result = MagicMock()
@@ -92,7 +97,10 @@ async def test_quota_guard_aborts_when_at_limit():
     session_mock.commit = AsyncMock()
 
     month_result = MagicMock()
-    month_result.scalar.return_value = "2026-05"
+    # Current UTC month → no-reset path (see _make_db_stack note); a literal month
+    # breaks this test when the real month rolls over.
+    from datetime import datetime, timezone
+    month_result.scalar.return_value = datetime.now(tz=timezone.utc).strftime("%Y-%m")
     quota_result = MagicMock()
     quota_result.scalar.return_value = "27000"  # AT hard limit
     session_mock.execute = AsyncMock(side_effect=[month_result, quota_result])
@@ -208,6 +216,45 @@ async def test_transient_5xx_requeues_does_not_set_failed():
         result = await fetch_bill_texts(batch_size=10)
 
     assert result == 0  # transient = not terminal
+    assert bill.text_fetch_status == "queued"
+    assert bill.text_fetch_attempts == 1
+
+
+async def test_connect_timeout_is_transient_not_uncaught():
+    """ConnectTimeout/WriteTimeout/PoolTimeout are httpx.TimeoutException, NOT
+    subclasses of httpx.ConnectError. With connect/write/pool timeouts configured
+    on the client they can fire in prod; if uncaught they propagate out of the
+    `for bill in bills` loop and abort the rest of the nightly batch. They must
+    be classified transient (requeue, no quota charge), like ReadTimeout."""
+    bill = _make_bill(attempts=0)
+    session_cm, _ = _make_db_stack([bill])
+
+    per_bill_session = AsyncMock()
+    per_bill_session.commit = AsyncMock()
+    per_bill_session.get = AsyncMock(return_value=bill)
+    per_bill_session.execute = AsyncMock(return_value=MagicMock())
+    per_bill_cm = AsyncMock()
+    per_bill_cm.__aenter__ = AsyncMock(return_value=per_bill_session)
+    per_bill_cm.__aexit__ = AsyncMock(return_value=False)
+
+    fake_legiscan = AsyncMock()
+    fake_legiscan.get_bill_doc = AsyncMock(
+        side_effect=httpx.ConnectTimeout("connect timed out", request=MagicMock())
+    )
+    fake_legiscan.close = AsyncMock()
+
+    call_count = 0
+
+    def _session_factory():
+        nonlocal call_count
+        call_count += 1
+        return session_cm if call_count == 1 else per_bill_cm
+
+    with patch("worker.tasks.fetch_bill_texts.async_session", side_effect=_session_factory), \
+         patch("worker.tasks.fetch_bill_texts.LegiScanClient", return_value=fake_legiscan):
+        result = await fetch_bill_texts(batch_size=10)
+
+    assert result == 0  # transient = not terminal, batch survives
     assert bill.text_fetch_status == "queued"
     assert bill.text_fetch_attempts == 1
 
