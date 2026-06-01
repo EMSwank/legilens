@@ -25,14 +25,25 @@ BOOTSTRAP_DEBOUNCE = timedelta(days=7)
 
 
 async def fetch_and_match() -> None:
-    """Daily steady-state: fetch ~1k queued bill texts then run match phase.
+    """Daily steady-state: fetch ~1k queued CO bill texts then run match phase.
 
     Runs after run_full_pipeline (03:00). Quota guard inside fetch_bill_texts
     prevents overrun even if called extra times.
+
+    priority_state="CO" is a deliberate gate, not an optimization. Without it,
+    fetch_bill_texts drains the *global* queue by priority (CO=0, top5=1,
+    rest=2); once CO is exhausted (~9 nights) the same cron would roll into
+    ~300k non-CO bills, fetching per-bill full_text via getBillText — roughly
+    11 months at the quota-capped ~1k/night, plus multiple GB of Postgres
+    storage. Populating the national corpus is a separate, explicit decision
+    (scope, storage tier, and method are unresolved); the steady-state loop
+    stays scoped to the focus state until then.
+    Remove this argument only with an explicit decision to fund a national
+    non-CO text fetch.
     """
     logger.info("fetch_and_match: start")
-    count = await fetch_bill_texts(batch_size=1000)
-    logger.info("fetch_and_match: fetched %d bills", count)
+    count = await fetch_bill_texts(batch_size=1000, priority_state="CO")
+    logger.info("fetch_and_match: fetched %d CO bills", count)
     if count > 0:
         await match_co_bills()
     logger.info("fetch_and_match: done")

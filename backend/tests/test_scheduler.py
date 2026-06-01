@@ -237,7 +237,7 @@ async def test_fetch_and_match_runs_fetch_then_match():
          patch("worker.scheduler.match_co_bills", new=AsyncMock()) as match:
         await fetch_and_match()
 
-    fetch.assert_awaited_once_with(batch_size=1000)
+    fetch.assert_awaited_once_with(batch_size=1000, priority_state="CO")
     match.assert_awaited_once()
 
 
