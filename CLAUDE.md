@@ -59,6 +59,7 @@ To quantify the "Friction Gap" in the Colorado General Assembly by analyzing the
 | Post-MVP | Ingest hardening: Postgres-backed dataset dedup (PR #35), API-key redaction in logs (PRs #36–#37), local ZIP cache + hash.md5 manifest enforcement (PR #39). Worker Railway Volume mounted at `/data/zip_cache` with `LEGISCAN_ZIP_CACHE_DIR` env var. | ✅ Merged to main |
 | Bootstrap & resilience | Fresh DB session per dataset (PR #41), CO-first two-pass bootstrap so live site shows data within minutes (PR #42), Postgres-backed bootstrap debounce with single `getDatasetList` per run (PR #43), server-side `state="CO"` filter for pass=1 (PR #44). | ✅ Merged to main |
 | Match-phase perf & schema | LSH-backed sublinear match phase via `CorpusIndex` wrapper around `MinHashLSH` (PR #45), defenses against duplicate `MinHashSignature` rows (`DISTINCT ON` query + `CorpusIndex.add` guard, PR #46), root-fix `UNIQUE` constraint on `minhash_signatures.bill_id` with Postgres upsert in `_process_bill` (Alembic 004, PR #48). | ✅ Merged to main |
+| Intra-CO Related Bills (WS1) | Two-pass `match_co_bills`: cross-state pass writes `ISTScore` + cross_state `SimilarityMatch`; new CO-internal pass writes co_internal `SimilarityMatch` **only** (honesty guard — never `ISTScore`). Surfaces ≥70% text reuse between *distinct* CO bills (companions + reintroductions) as a "Related Colorado Bills" panel on bill detail, a "Related" badge in the dashboard list, and a `related_co_bills` stat. Zero migrations — `has_related` / `matched_bill_number` / `matched_bill_title` are join-derived at read time (PR #60). | ✅ Merged to main |
 
 ## **6\. Architecture**
 
@@ -77,8 +78,8 @@ LegiScan API → backend/worker/ → Neon Postgres → backend/app/ (FastAPI) �
 - `backend/worker/tasks/evidence.py` — snippet extraction worker; ghost state when source text unavailable
 - `backend/worker/scheduler.py` — apscheduler entry point; nightly cron + cold-start bootstrap; runs the two-pass pipeline (see below)
 - `backend/worker/tasks/ingest.py` — LegiScan dataset sync, MinHash computation, ZIP cache + hash.md5 manifest verification; `only_state=` param filters to one state for the CO-first bootstrap pass
-- `backend/worker/tasks/match.py` — Jaccard similarity match; CO-only `ISTScore` + `SimilarityMatch` rows are deleted at the top of every run for idempotency
-- `backend/tests/` — pytest-asyncio suite (108 tests), all API tests using `dependency_overrides` (not patch); worker tests use `unittest.mock.patch`
+- `backend/worker/tasks/match.py` — two-pass Jaccard similarity match. Pass 1 (`_find_matches_for_bill`) scores each CO bill against the cross-state corpus, writing `ISTScore` + cross_state `SimilarityMatch`. Pass 2 (`_find_co_internal_matches`) scores CO bills against each other, writing co_internal `SimilarityMatch` **only** — never `ISTScore` (honesty guard). CO `ISTScore` + `SimilarityMatch` rows (both match_types) are deleted at the top of every run for idempotency
+- `backend/tests/` — pytest-asyncio suite (163 tests), all API tests using `dependency_overrides` (not patch); worker tests use `unittest.mock.patch`
 
 **Design decisions to remember:**
 - `GhostMessage` is synthesized by the router at read time — never stored in DB. `snippet_status == "source_verified_text_missing"` + `matched_snippets IS NULL` → ghost response.
@@ -93,23 +94,27 @@ LegiScan API → backend/worker/ → Neon Postgres → backend/app/ (FastAPI) �
 - Bootstrap debounce lives in the Postgres `worker_state` table (TTL 7 days), not Redis. Redis is ephemeral on Railway by default; losing the debounce key is exactly what triggers a full 50-state re-download. PR #35 already moved dataset dedup off Redis for the same reason.
 - `match_co_bills` uses `CorpusIndex` (LSH wrapper) for candidate retrieval — never iterate the full corpus per CO bill. The LSH threshold in `build_lsh()` must be **≤** the match-phase Jaccard cutoff (70%), and `weights=(0.1, 0.9)` biases band/row selection toward recall so candidates are a strict superset of real matches. Setting the LSH threshold equal to the match cutoff with default weights silently drops ~56% of matches at the boundary — verified in `test_corpus_index_recalls_near_threshold_match`.
 - `MinHashSignature` has a `UNIQUE(bill_id)` constraint (Alembic 004, PR #48). `_process_bill` writes signatures via `pg_insert(...).on_conflict_do_update(...)` so re-ingest replaces the row instead of stacking duplicates. The `DISTINCT ON (bill_id) ORDER BY computed_at DESC` guard in `_load_co_signatures_for_matching` and the `CorpusIndex.add` dedup guard are now redundant but kept as belt-and-suspenders — remove only in a future cleanup PR with explicit reasoning.
+- **WS1 honesty guard (load-bearing, PR #60):** `_find_co_internal_matches` writes co_internal `SimilarityMatch` rows **only** — it never creates or modifies `ISTScore`. `copycat_alert` and the Source Authenticity Score stay derived *exclusively* from the cross-state pass, whose corpus is `is_corpus_only=True` and therefore never contains CO bills. This is what keeps the homepage "Copycat Alerts: 0" literally true. The CO-internal pass applies three guards: self-match skip, companion-noise skip via `_normalize_bill_number` (collapses whitespace + upcases so "HB 1234" / "HB1234" version-dupes don't pair), and the ≥70% Jaccard precision gate. Each unordered pair {A,B} is intentionally written twice (A→B and B→A) so each bill's detail page lists its own related bills — no UNIQUE constraint on the pair.
+- WS1 added **zero Alembic migrations**: `related_co_bills` (stats), `has_related` (bills list/detail), and `matched_bill_number` / `matched_bill_title` (matches) are all computed or join-derived at read time. `stats.related_co_bills` counts DISTINCT CO `bill_id` with ≥1 co_internal match; `has_related` is a per-bill `EXISTS` over co_internal matches; the matched number/title come from joining `SimilarityMatch.matched_bill_id` back to `Bill`.
 
 ### Frontend (Sprints 3 + 4)
 
 **Key files:**
-- `frontend/app/page.tsx` — dashboard: stats grid, debounced search, SessionDropdown, FilterChips, bill list with `aria-live`; filter state in URL params only
-- `frontend/app/bills/[id]/page.tsx` — bill detail: IST gauge, friction tags, match cards
-- `frontend/app/about/page.tsx` — methodology page with ShingleDiagram SVG
+- `frontend/app/page.tsx` — dashboard: stats grid (incl. "CO Bills with Related Text" / `related_co_bills`), debounced search, SessionDropdown, FilterChips, bill list with `aria-live` + amber "Related" badge when `has_related`; filter state in URL params only
+- `frontend/app/bills/[id]/page.tsx` — bill detail: IST gauge, friction tags, cross_state match cards, and a separate "Related Colorado Bills" panel (co_internal matches, rendered only when ≥1 exists) carrying the copycat-exclusion disclaimer
+- `frontend/app/about/page.tsx` — methodology page with ShingleDiagram SVG; includes the "Related Colorado Bills" section explaining co_internal matches are never a copycat alert
 - `frontend/app/accessibility/page.tsx` — WCAG 2.1 AA accessibility statement
 - `frontend/app/tags/page.tsx` — friction tag browser; each tag card links to `/?tag_type=<slug>`
-- `frontend/components/` — ISTScoreGauge, MatchCard, SnippetDiff, GhostAlert, TagBadge, CopyButton, SearchInput, PendingBanner, SessionDropdown, FilterChips, ShingleDiagram, BillHeader, BillSidebar, ProgressBar, Providers
+- `frontend/components/` — ISTScoreGauge, MatchCard, RelatedBillCard, SnippetDiff, GhostAlert, TagBadge, CopyButton, SearchInput, PendingBanner, SessionDropdown, FilterChips, ShingleDiagram, BillHeader, BillSidebar, ProgressBar, Providers
 - `frontend/lib/api.ts` — typed fetch client, `NEXT_PUBLIC_API_URL` base; exports `bills()`, `searchBills()`, `tags()`, `sessions()`, `stats()`
 - `frontend/lib/types.ts` — TypeScript interfaces mirroring Pydantic schemas; includes `TagCount`
 - `frontend/e2e/` — 5 spec files (dashboard, bill-detail, about, tags, filters); Playwright + @axe-core/playwright
-- `frontend/__tests__/` — 81 jest-axe unit tests across 17 test files
+- `frontend/__tests__/` — 87 jest-axe unit tests across 18 test files
 
 **Design decisions to remember:**
 - `MatchCard` renders ghost/pending/verified states by inspecting `snippet_status`, not `matched_snippets` contents.
+- Bill detail splits matches by `match_type`: `cross_state` → `MatchCard` (under "Similarity Matches"), `co_internal` → `RelatedBillCard` (under "Related Colorado Bills", shown only when ≥1 exists). The Related panel carries an inline "never counted as a copycat alert" disclaimer mirroring the backend honesty guard.
+- `RelatedBillCard` links to the matched CO bill and shows "{score}% shared text" with an amber accent — deliberately distinct from the red copycat `TagBadge` so related bills never read as a copycat signal.
 - Error boundaries use Next.js 16 `unstable_retry` (not `reset`). `global-error.tsx` must include `<html>/<body>` tags.
 - `SearchInput` uses `isFirstRender` ref to prevent mount-time router push.
 - Playwright `webServer`: `npm run build && npm run start` locally; `npm run start` in CI (build step precedes E2E step).

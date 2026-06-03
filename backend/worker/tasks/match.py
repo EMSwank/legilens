@@ -170,12 +170,13 @@ async def _find_matches_for_bill(session, co_bill_id: UUID, co_m, corpus: Corpus
             matched_state=corpus_state,
             similarity_score=sim,
             snippet_status="pending",
-            # co_internal is currently unreachable: the corpus index is built
-            # only from is_corpus_only=True bills (see line ~93), and CO bills
-            # are always is_corpus_only=False, so corpus_state is never "CO".
-            # Kept as forward-looking scaffolding for if/when CO bills enter the
-            # corpus (would also need a self-match guard above). All production
-            # matches today are cross_state.
+            # This branch never produces co_internal: Pass 1's corpus index is
+            # built only from is_corpus_only=True bills (see line ~93), and CO
+            # bills are always is_corpus_only=False, so corpus_state is never
+            # "CO" here. Real co_internal rows are written by Pass 2
+            # (_find_co_internal_matches), not this function. The ternary is kept
+            # as a defensive guard for if/when CO bills ever enter this corpus
+            # (which would also need a self-match guard above).
             match_type="co_internal" if corpus_state == "CO" else "cross_state",
         )
         session.add(match)
