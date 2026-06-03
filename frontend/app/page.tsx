@@ -148,7 +148,14 @@ function DashboardContent() {
                       <span className="font-mono text-sm text-slate-400">{bill.bill_number}</span>
                       <p className="font-medium text-slate-200">{bill.title}</p>
                     </div>
-                    {bill.copycat_alert && <TagBadge type="source_cloned" />}
+                    <div className="flex items-center gap-2">
+                      {bill.has_related && (
+                        <span className="rounded bg-amber-900/60 px-2 py-0.5 text-xs font-semibold text-amber-300">
+                          Related
+                        </span>
+                      )}
+                      {bill.copycat_alert && <TagBadge type="source_cloned" />}
+                    </div>
                   </Link>
                 </li>
               ))}

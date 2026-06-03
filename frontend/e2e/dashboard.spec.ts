@@ -12,6 +12,7 @@ const billsFixture = [
     session: "2024A",
     status: "Introduced",
     copycat_alert: true,
+    has_related: true,
   },
   {
     id: "bill-2",
@@ -21,6 +22,7 @@ const billsFixture = [
     session: "2024A",
     status: "Passed",
     copycat_alert: false,
+    has_related: false,
   },
 ];
 
@@ -33,6 +35,7 @@ const searchResultsFixture = [
     session: "2024A",
     status: "Introduced",
     copycat_alert: false,
+    has_related: false,
   },
 ];
 
