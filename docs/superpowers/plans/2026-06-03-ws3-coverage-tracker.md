@@ -4,7 +4,7 @@
 
 **Goal:** Ship a `/coverage` page that makes the slow corpus build visible — per-state ingest status + a single headline "matchable %" scoped to the current ingest target (Colorado + 5 comparison states).
 
-**Architecture:** A nightly worker computes one coverage snapshot (per-state `{fetchable, with_sig}` counts) and persists it as JSON in the existing `worker_state` table. A read-only `GET /coverage` endpoint reads that one row and derives per-state statuses + the scoped matchable %. The frontend renders an accessible table (source of truth) plus a decorative state-grid visual. No new DB migration, no new table.
+**Architecture:** A nightly worker computes one coverage snapshot (per-state `{fetchable, with_sig}` counts) and persists it as JSON in the existing `worker_state` table. A read-only `GET /coverage` endpoint reads that one row and derives per-state statuses + the scoped matchable %. The frontend renders an accessible table (source of truth) with an inline, decorative status dot per row plus a headline matchable-% number — no separate geographic map in the MVP. No new DB migration, no new table.
 
 **Tech Stack:** Python 3 / SQLAlchemy 2 async / FastAPI / Pydantic v2 / pytest-asyncio (backend); Next.js 16 / React 19 / TanStack Query / Tailwind / jest-axe / Playwright (frontend).
 
@@ -270,7 +270,15 @@ git commit -m "feat(coverage): pure coverage aggregation + derivation helpers"
 
 ```python
 # backend/tests/test_api_coverage.py
+# All imports at top to avoid pylint C0413 (wrong-import-position) — CI fails on
+# ANY pylint message. The json/AsyncClient/AsyncMock imports are used by the
+# endpoint tests appended in Task 3; they're declared here so Task 3 adds only
+# functions, never mid-file imports.
+import json
 from datetime import datetime, timezone
+import pytest_asyncio
+from unittest.mock import AsyncMock, MagicMock
+from httpx import AsyncClient, ASGITransport
 from app.schemas.coverage import StateCoverage, CoverageOut
 
 
@@ -345,13 +353,7 @@ git commit -m "feat(coverage): CoverageOut / StateCoverage schemas"
 - [ ] **Step 1: Write the failing tests (append to test_api_coverage.py)**
 
 ```python
-# --- append to backend/tests/test_api_coverage.py ---
-import json
-import pytest_asyncio
-from unittest.mock import AsyncMock, MagicMock
-from httpx import AsyncClient, ASGITransport
-
-
+# --- append to backend/tests/test_api_coverage.py (imports already at top from Task 2) ---
 @pytest_asyncio.fixture
 async def client():
     from app.main import app
@@ -548,6 +550,8 @@ async def test_compute_snapshot_aggregates_and_upserts():
         {"state": "TX", "fetchable": 1, "with_sig": 0},
     ]}
 ```
+
+> **Fallback if the bind-param assertion is fragile (advisor):** Postgres `on_conflict_do_update` bind-naming is version-sensitive. If `upsert_stmt.compile(dialect=postgresql.dialect()).params["value"]` raises `KeyError` or returns the wrong bind at Step 5, decouple the wiring test from compiler internals with a sentinel: wrap the call in `with patch("worker.tasks.coverage.build_snapshot_payload", return_value="SENTINEL"):`, then assert `params["value"] == "SENTINEL"`. The Task 1 `build_snapshot_payload`/`aggregate_coverage` tests remain the real proof of aggregation correctness; this test only proves the worker wires read → payload → upsert.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -1024,7 +1028,7 @@ test("dashboard links to the coverage page", async () => {
   expect(link).toHaveAttribute("href", "/coverage");
 });
 ```
-If no dashboard page test exists, create `frontend/__tests__/pages/Dashboard.test.tsx` mirroring `Tags.test.tsx` (mock `api.stats`/`api.bills`/`api.sessions`, wrap in `withQueryClient` + `Suspense` if needed) with just this assertion.
+If no dashboard page test exists, create `frontend/__tests__/pages/Dashboard.test.tsx` mirroring `Tags.test.tsx` (mock `api.stats`/`api.bills`/`api.sessions`; **also mock `next/navigation`'s `useRouter`/`useSearchParams`** — the dashboard uses them, unlike Tags, so an unmocked render throws; wrap in `withQueryClient` + `Suspense` if needed) with just this assertion.
 
 - [ ] **Step 2: Run to verify it fails**
 
@@ -1219,7 +1223,7 @@ Per `/route-tasks` (pedalpoint) classification, when executing:
 
 ## Self-Review
 
-**Spec coverage (§5):** matchable %-denominator pinned to CO+top5 ✓ (Task 1 `scoped_matchable_pct` + `SCOPE`); three status dots with thresholds ✓ (Task 1 `derive_state_status`); snapshot-not-live in `worker_state` ✓ (Task 4); `GET /coverage` reads snapshot + derives + pending cold-start ✓ (Task 3); accessible table as source of truth + decorative grid/dots ✓ (Task 7); `lib/api.ts`/`lib/types.ts` ✓ (Task 6); nav link ✓ (Task 8); tests at every layer ✓; legend naming the scope ✓ (Task 7 header copy).
+**Spec coverage (§5):** matchable %-denominator pinned to CO+top5 ✓ (Task 1 `scoped_matchable_pct` + `SCOPE`); three status dots with thresholds ✓ (Task 1 `derive_state_status`); snapshot-not-live in `worker_state` ✓ (Task 4); `GET /coverage` reads snapshot + derives + pending cold-start ✓ (Task 3); accessible table as source of truth, with an inline decorative status dot per row — **no separate geographic map/grid in the MVP** (conscious scope choice; spec §5 offered "a simple state grid" as an *option*, and table-with-inline-dots is simpler and more accessible) ✓ (Task 7); `lib/api.ts`/`lib/types.ts` ✓ (Task 6); nav link ✓ (Task 8); tests at every layer ✓; legend naming the scope ✓ (Task 7 header copy).
 
 **Advisor's three query points baked in:** no fan-out (EXISTS, Task 4) ✓; `with_sig ⊆ fetchable` AND-gate (Task 1 `aggregate_coverage`, tested in `test_aggregate_excludes_null_doc_bill_from_both` + `test_aggregate_with_sig_never_exceeds_fetchable`) ✓; explicit `updated_at` in upsert `set_=` (Task 4) ✓. `matchable_pct` nullable + page handles null distinct from pending (Task 7 `test_coverage_page_handles_null_matchable_pct`) ✓. SCOPE-sync cross-ref comment (Task 4 + queue.py) ✓. Neon probe backstop (Task 10) ✓.
 
