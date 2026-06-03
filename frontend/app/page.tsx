@@ -85,8 +85,8 @@ function DashboardContent() {
           {[
             { label: "Bills Analyzed", value: stats.bills_analyzed },
             { label: "Copycat Alerts", value: stats.copycat_alerts },
-            { label: "CO Bills Tracked", value: stats.total_co_bills },
             { label: "CO Bills with Related Text", value: stats.related_co_bills },
+            { label: "CO Bills Tracked", value: stats.total_co_bills },
           ].map(({ label, value }) => (
             <div
               key={label}
