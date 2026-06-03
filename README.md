@@ -23,6 +23,8 @@ That's not an opinion. That's a measurement.
 **IST — Influence & Source Tracker** *(MVP)*
 Cross-state text reuse detection. Compares every Colorado bill against the full national LegiScan corpus (all 50 states, hundreds of thousands of bills, refreshed nightly). Produces a Source Authenticity Score (0–100). Below 30 = copycat alert.
 
+*Related Colorado bills* — companion bills and reintroductions that share language with each other *within* Colorado — also surface on each bill's page. They are deliberately never counted as a copycat alert: the Source Authenticity Score is computed only against *other states'* legislation, so a related Colorado bill never moves a bill's score.
+
 **SNP — Signal-to-Noise Processor** *(coming)*
 Measures how much committee and floor time gets spent on the actual bill versus campaign-style grandstanding. Quantifies the time-cost of performative politics.
 
@@ -68,6 +70,14 @@ MVP shipped — deployed on Railway (backend) + Vercel (frontend). Post-MVP modu
 | Post-MVP | Ingest hardening: Postgres-backed dataset dedup, API-key log redaction, local ZIP cache with `hash.md5` manifest enforcement (Railway Volume) | ✅ Complete |
 | Bootstrap & resilience | Fresh DB session per dataset, CO-first two-pass bootstrap, Postgres-backed bootstrap debounce, server-side state filter for pass=1 | ✅ Complete |
 | Match-phase perf & schema | LSH-backed sublinear match (sub-second corpus lookups), `UNIQUE` constraint + Postgres upsert on `minhash_signatures.bill_id` | ✅ Complete |
+| Intra-CO Related Bills | Two-pass match: cross-state copycat detection plus a Colorado-internal pass that surfaces companion bills and reintroductions sharing ≥70% text — kept strictly separate from the copycat signal | ✅ Complete |
+
+### Intra-CO Related Bills — what shipped
+
+- Two-pass `match_co_bills`: the existing cross-state pass writes the Source Authenticity Score and copycat alerts; a new Colorado-internal pass surfaces *distinct* CO bills that share ≥70% language with each other (companion bills, reintroductions, thematically related drafts)
+- Honesty guard: the Colorado-internal pass writes similarity matches only, never an authenticity score. Copycat alerts and the Source Authenticity Score stay computed *exclusively* from cross-state comparisons — a related Colorado bill never moves a bill's IST score, and "Copycat Alerts: 0" on the dashboard stays literally true
+- Surfaced as a "Related Colorado Bills" panel on bill detail pages, a "Related" badge in the dashboard bill list, and a "CO Bills with Related Text" stat — each visually distinct from the copycat alert
+- Zero schema migrations: the related-bill count, the per-bill flag, and the matched bill number/title are all derived at read time
 
 ### Post-MVP — what shipped
 

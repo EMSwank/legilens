@@ -30,7 +30,7 @@ NEXT_PUBLIC_API_URL=http://your-backend npm run dev
 npm run dev       # development server
 npm run build     # production build
 npm run start     # production server (requires prior build)
-npm test          # jest unit tests (81 tests across 17 files)
+npm test          # jest unit tests (87 tests across 18 files)
 npm run e2e       # Playwright E2E (5 spec files; requires prior build locally)
 npm run lint      # ESLint
 ```
@@ -39,8 +39,8 @@ npm run lint      # ESLint
 
 ```
 app/
-  page.tsx              # dashboard — stats, bill list, search, session dropdown, filter chips
-  bills/[id]/page.tsx   # bill detail — IST gauge, matches, snippets
+  page.tsx              # dashboard — stats, bill list (+ "Related" badge), search, session dropdown, filter chips
+  bills/[id]/page.tsx   # bill detail — IST gauge, cross-state matches, Related Colorado Bills panel, snippets
   about/page.tsx        # methodology page with ShingleDiagram SVG
   tags/page.tsx         # friction tag browser
   accessibility/page.tsx # WCAG 2.1 AA accessibility statement
@@ -50,7 +50,8 @@ app/
 
 components/
   ISTScoreGauge.tsx     # Recharts radial chart, role="img"
-  MatchCard.tsx         # similarity match with snippet diffs
+  MatchCard.tsx         # cross-state similarity match with snippet diffs
+  RelatedBillCard.tsx   # co_internal related-CO-bill link card (amber accent)
   SnippetDiff.tsx       # side-by-side CO vs source text
   GhostAlert.tsx        # "source text unavailable" state
   CopyButton.tsx        # journalist clipboard copy
@@ -79,3 +80,4 @@ e2e/                    # 5 Playwright spec files (dashboard, bill-detail, about
 - `MatchCard` renders ghost/pending/verified by checking `snippet_status`, not `matched_snippets` contents.
 - `SearchInput` uses `isFirstRender` ref to suppress mount-time router push.
 - Playwright `webServer` runs `npm run build && npm run start` locally; CI runs `npm run start` (build step precedes E2E in the workflow).
+- Bill detail splits matches by `match_type`: `cross_state` renders as `MatchCard`; `co_internal` renders as `RelatedBillCard` in a separate "Related Colorado Bills" panel. Related Colorado bills are never shown as a copycat signal — that framing mirrors the backend honesty guard (the CO-internal match pass writes similarity matches only, never an IST score).
