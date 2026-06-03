@@ -65,7 +65,9 @@ class CorpusIndex:
         return len(self._lookup)
 
 
-async def match_co_bills():
+# Two-pass pipeline (cross-state corpus index + CO-internal index + per-pass
+# timers) inherently needs many locals; the count is structural, not bloat.
+async def match_co_bills():  # pylint: disable=too-many-locals
     async with async_session() as session:
         # Idempotency: nuke prior match output for CO bills so re-runs (nightly
         # or two-pass bootstrap) don't accumulate duplicate ISTScore /
@@ -212,7 +214,7 @@ async def _find_co_internal_matches(session, co_bill_id: UUID, co_m, co_index: C
     its own related bills (spec section 3).
     """
     self_number = _normalize_bill_number(co_meta[co_bill_id][0])
-    for cand_id, cand_state, cand_number, cand_m in co_index.query(co_m):
+    for cand_id, _cand_state, cand_number, cand_m in co_index.query(co_m):
         if cand_id == co_bill_id:
             continue  # self-guard
         if _normalize_bill_number(cand_number) == self_number:
