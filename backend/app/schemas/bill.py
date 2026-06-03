@@ -27,6 +27,7 @@ class BillListItem(BaseModel):
     session: str
     status: str | None
     copycat_alert: bool | None
+    has_related: bool
 
     model_config = {"from_attributes": True}
 

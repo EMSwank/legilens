@@ -1,14 +1,24 @@
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func
+from sqlalchemy import select, func, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db, require_user_agent
 from app.models.bill import Bill
 from app.models.ist_score import ISTScore
 from app.models.friction_tag import FrictionTag
+from app.models.similarity_match import SimilarityMatch
 from app.schemas.bill import BillListItem, BillDetail, ISTScoreOut, FrictionTagOut
 
 router = APIRouter(prefix="/bills", dependencies=[Depends(require_user_agent)])
+
+
+def _has_related_expr():
+    return exists(
+        select(SimilarityMatch.id)
+        .where(SimilarityMatch.bill_id == Bill.id)
+        .where(SimilarityMatch.match_type == "co_internal")
+        .correlate(Bill)
+    )
 
 
 @router.get("", response_model=list[BillListItem])
@@ -21,7 +31,7 @@ async def list_bills(
     db: AsyncSession = Depends(get_db),
 ):
     q = (
-        select(Bill, ISTScore.copycat_alert)
+        select(Bill, ISTScore.copycat_alert, _has_related_expr().label("has_related"))
         .outerjoin(ISTScore, ISTScore.bill_id == Bill.id)
         .where(Bill.is_corpus_only.is_(False))
     )
@@ -45,8 +55,9 @@ async def list_bills(
             session=b.session,
             status=b.status,
             copycat_alert=copycat_alert,
+            has_related=has_related,
         )
-        for b, copycat_alert in rows
+        for b, copycat_alert, has_related in rows
     ]
 
 
@@ -56,7 +67,7 @@ async def search_bills(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Bill, ISTScore.copycat_alert)
+        select(Bill, ISTScore.copycat_alert, _has_related_expr().label("has_related"))
         .outerjoin(ISTScore, ISTScore.bill_id == Bill.id)
         .where(Bill.is_corpus_only.is_(False))
         .where(func.similarity(Bill.full_text, q) > 0.1)
@@ -73,8 +84,9 @@ async def search_bills(
             session=b.session,
             status=b.status,
             copycat_alert=copycat_alert,
+            has_related=has_related,
         )
-        for b, copycat_alert in rows
+        for b, copycat_alert, has_related in rows
     ]
 
 
