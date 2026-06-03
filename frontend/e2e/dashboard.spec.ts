@@ -44,12 +44,20 @@ async function interceptDefault(page: Page) {
   await page.route("**/bills", (route) => route.fulfill({ json: billsFixture }));
 }
 
-test("stats grid renders 3 cards with numeric values", async ({ page }) => {
+test("stats grid renders 4 cards with numeric values", async ({ page }) => {
   await interceptDefault(page);
   await page.goto("/");
   await expect(page.getByText("289")).toBeVisible();
   await expect(page.getByText("17")).toBeVisible();
   await expect(page.getByText("342")).toBeVisible();
+  await expect(page.getByText("125")).toBeVisible();
+  await expect(page.getByText("CO Bills with Related Text")).toBeVisible();
+});
+
+test("related badge visible on bills with co_internal matches", async ({ page }) => {
+  await interceptDefault(page);
+  await page.goto("/");
+  await expect(page.getByText("Related", { exact: true })).toBeVisible();
 });
 
 test("bills list renders rows with links to /bills/[id]", async ({ page }) => {
