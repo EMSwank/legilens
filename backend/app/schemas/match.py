@@ -39,5 +39,8 @@ class MatchOut(BaseModel):
     similarity_score: Decimal
     snippet_status: SnippetStatus
     matched_snippets: list[SnippetOrGhost] | None
+    match_type: Literal["cross_state", "co_internal"]
+    matched_bill_id: UUID
+    matched_bill_number: str | None
 
     model_config = {"from_attributes": True}

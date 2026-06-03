@@ -285,3 +285,130 @@ async def test_match_type_is_cross_state_when_corpus_state_is_not_co():
     matches = [a for a in added if isinstance(a, SimilarityMatch)]
     assert len(matches) == 1
     assert matches[0].match_type == "cross_state"
+
+
+async def test_normalize_bill_number_strips_and_uppercases():
+    from worker.tasks.match import _normalize_bill_number
+    assert _normalize_bill_number("hb 1234") == "HB1234"
+    assert _normalize_bill_number(" SB24-005 ") == "SB24-005"
+    assert _normalize_bill_number("Hb1234") == "HB1234"
+
+
+async def test_co_internal_writes_match_for_distinct_numbers():
+    from worker.tasks.match import _find_co_internal_matches, CorpusIndex
+    from app.models.similarity_match import SimilarityMatch
+
+    text = "The commission shall establish fees not to exceed one hundred dollars per application submitted to the board."
+    a, b = uuid4(), uuid4()
+
+    co_index = CorpusIndex()
+    co_index.add(a, "CO", "HB-1", compute_minhash(text))
+    co_index.add(b, "CO", "SB-2", compute_minhash(text))
+    co_meta = {a: ("HB-1", "Bill A"), b: ("SB-2", "Bill B")}
+
+    mock_session = AsyncMock()
+    mock_session.add = MagicMock()
+    mock_session.commit = AsyncMock()
+
+    await _find_co_internal_matches(mock_session, a, compute_minhash(text), co_index, co_meta)
+
+    added = [call.args[0] for call in mock_session.add.call_args_list]
+    matches = [x for x in added if isinstance(x, SimilarityMatch)]
+    assert len(matches) == 1
+    assert matches[0].match_type == "co_internal"
+    assert matches[0].matched_bill_id == b
+    assert matches[0].matched_state == "CO"
+    assert matches[0].matched_bill_title == "Bill B"
+    assert matches[0].snippet_status == "pending"
+
+
+async def test_co_internal_pass_does_not_write_ist_score():
+    """HONESTY GUARD: the CO-internal pass must never create an ISTScore, so
+    copycat_alert stays cross-state-only. If this fails, the feature is wrong."""
+    from worker.tasks.match import _find_co_internal_matches, CorpusIndex
+    from app.models.ist_score import ISTScore
+
+    text = "The commission shall establish fees not to exceed one hundred dollars per application submitted to the board."
+    a, b = uuid4(), uuid4()
+
+    co_index = CorpusIndex()
+    co_index.add(a, "CO", "HB-1", compute_minhash(text))
+    co_index.add(b, "CO", "SB-2", compute_minhash(text))
+    co_meta = {a: ("HB-1", "Bill A"), b: ("SB-2", "Bill B")}
+
+    mock_session = AsyncMock()
+    mock_session.add = MagicMock()
+    mock_session.commit = AsyncMock()
+
+    await _find_co_internal_matches(mock_session, a, compute_minhash(text), co_index, co_meta)
+
+    added = [call.args[0] for call in mock_session.add.call_args_list]
+    assert not any(isinstance(x, ISTScore) for x in added)
+
+
+async def test_co_internal_self_guard_skips_same_bill():
+    from worker.tasks.match import _find_co_internal_matches, CorpusIndex
+    from app.models.similarity_match import SimilarityMatch
+
+    text = "The commission shall establish fees not to exceed one hundred dollars per application submitted to the board."
+    a = uuid4()
+
+    co_index = CorpusIndex()
+    co_index.add(a, "CO", "HB-1", compute_minhash(text))
+    co_meta = {a: ("HB-1", "Bill A")}
+
+    mock_session = AsyncMock()
+    mock_session.add = MagicMock()
+    mock_session.commit = AsyncMock()
+
+    await _find_co_internal_matches(mock_session, a, compute_minhash(text), co_index, co_meta)
+
+    added = [call.args[0] for call in mock_session.add.call_args_list]
+    assert not any(isinstance(x, SimilarityMatch) for x in added)
+
+
+async def test_co_internal_companion_noise_guard_skips_identical_bill_number():
+    """Same normalized bill_number = version/session duplicate of one bill, not a
+    distinct related bill. Drop it (the 1 noise pair from the de-risk probe)."""
+    from worker.tasks.match import _find_co_internal_matches, CorpusIndex
+    from app.models.similarity_match import SimilarityMatch
+
+    text = "The commission shall establish fees not to exceed one hundred dollars per application submitted to the board."
+    a, b = uuid4(), uuid4()
+
+    co_index = CorpusIndex()
+    co_index.add(a, "CO", "HB24-1234", compute_minhash(text))
+    co_index.add(b, "CO", " hb24-1234 ", compute_minhash(text))  # same number, case/whitespace variant
+    co_meta = {a: ("HB24-1234", "Bill v1"), b: (" hb24-1234 ", "Bill v2")}
+
+    mock_session = AsyncMock()
+    mock_session.add = MagicMock()
+    mock_session.commit = AsyncMock()
+
+    await _find_co_internal_matches(mock_session, a, compute_minhash(text), co_index, co_meta)
+
+    added = [call.args[0] for call in mock_session.add.call_args_list]
+    assert not any(isinstance(x, SimilarityMatch) for x in added)
+
+
+async def test_co_internal_below_threshold_writes_no_match():
+    from worker.tasks.match import _find_co_internal_matches, CorpusIndex
+    from app.models.similarity_match import SimilarityMatch
+
+    base = "no person shall operate a vehicle without a valid license issued by the department of motor vehicles"
+    far = "quantum entanglement is a physical phenomenon observed at subatomic scales in laboratory settings"
+    a, b = uuid4(), uuid4()
+
+    co_index = CorpusIndex()
+    co_index.add(a, "CO", "HB-1", compute_minhash(base))
+    co_index.add(b, "CO", "SB-2", compute_minhash(far))
+    co_meta = {a: ("HB-1", "Bill A"), b: ("SB-2", "Bill B")}
+
+    mock_session = AsyncMock()
+    mock_session.add = MagicMock()
+    mock_session.commit = AsyncMock()
+
+    await _find_co_internal_matches(mock_session, a, compute_minhash(base), co_index, co_meta)
+
+    added = [call.args[0] for call in mock_session.add.call_args_list]
+    assert not any(isinstance(x, SimilarityMatch) for x in added)

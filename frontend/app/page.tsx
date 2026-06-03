@@ -81,10 +81,11 @@ function DashboardContent() {
           Failed to load statistics.
         </div>
       ) : stats ? (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { label: "Bills Analyzed", value: stats.bills_analyzed },
             { label: "Copycat Alerts", value: stats.copycat_alerts },
+            { label: "CO Bills with Related Text", value: stats.related_co_bills },
             { label: "CO Bills Tracked", value: stats.total_co_bills },
           ].map(({ label, value }) => (
             <div
@@ -147,7 +148,14 @@ function DashboardContent() {
                       <span className="font-mono text-sm text-slate-400">{bill.bill_number}</span>
                       <p className="font-medium text-slate-200">{bill.title}</p>
                     </div>
-                    {bill.copycat_alert && <TagBadge type="source_cloned" />}
+                    <div className="flex items-center gap-2">
+                      {bill.has_related && (
+                        <span className="rounded bg-amber-900/60 px-2 py-0.5 text-xs font-semibold text-amber-300">
+                          Related
+                        </span>
+                      )}
+                      {bill.copycat_alert && <TagBadge type="source_cloned" />}
+                    </div>
                   </Link>
                 </li>
               ))}

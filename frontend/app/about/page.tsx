@@ -121,6 +121,21 @@ export default function About() {
       </section>
 
       <section className="space-y-3">
+        <h2 className="text-2xl font-bold text-white">Related Colorado Bills</h2>
+        <p>
+          In addition to cross-state matching, LegiLens identifies Colorado bills that share
+          similar language with each other within the same state legislature. These appear on
+          bill detail pages as &ldquo;Related Colorado Bills.&rdquo;
+        </p>
+        <p>
+          Related Colorado bills are never counted as a copycat alert. The copycat alert and
+          Source Authenticity Score are computed exclusively from cross-state comparisons against
+          legislation from other states. Companion bills, reintroductions, and thematically
+          related legislation that stays within Colorado do not affect a bill&apos;s IST score.
+        </p>
+      </section>
+
+      <section className="space-y-3">
         <h2 className="text-2xl font-bold text-white">Friction tag glossary</h2>
         <p>
           When a bill triggers specific patterns, LegiLens applies one or more

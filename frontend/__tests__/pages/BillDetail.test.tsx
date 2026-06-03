@@ -48,6 +48,9 @@ const matchFixture: Match = {
   matched_state: "TX",
   similarity_score: 87.3,
   snippet_status: "verified",
+  match_type: "cross_state",
+  matched_bill_id: "00000000-0000-0000-0000-000000000010",
+  matched_bill_number: "HB24-0001",
   matched_snippets: [{
     kind: "snippet",
     co_context_before: "",
@@ -65,6 +68,9 @@ const ghostMatchFixture: Match = {
   matched_state: "FL",
   similarity_score: 78.1,
   snippet_status: "source_verified_text_missing",
+  match_type: "cross_state",
+  matched_bill_id: "00000000-0000-0000-0000-000000000011",
+  matched_bill_number: "SB24-0002",
   matched_snippets: [{ kind: "ghost" as const, message: "Source text unavailable for extraction" as const }],
 };
 
@@ -74,7 +80,22 @@ const pendingMatchFixture: Match = {
   matched_state: "AZ",
   similarity_score: 65.0,
   snippet_status: "pending",
+  match_type: "cross_state",
+  matched_bill_id: "00000000-0000-0000-0000-000000000012",
+  matched_bill_number: "HB24-0003",
   matched_snippets: null,
+};
+
+const relatedMatchFixture: Match = {
+  id: "rel-1",
+  matched_bill_id: "00000000-0000-0000-0000-0000000000cc",
+  matched_bill_number: "SB24-113",
+  matched_bill_title: "Prohibit Discrimination Labor Union Participation",
+  matched_state: "CO",
+  similarity_score: 96.0,
+  snippet_status: "pending",
+  matched_snippets: null,
+  match_type: "co_internal",
 };
 
 beforeEach(() => jest.clearAllMocks());
@@ -145,4 +166,22 @@ test("BillDetailPage renders empty state when no matches", async () => {
   (api.matches as jest.Mock).mockResolvedValue([]);
   const { getByText } = render(<BillDetailPage />, { wrapper });
   await waitFor(() => expect(getByText(/no similarity matches/i)).toBeInTheDocument());
+});
+
+test("BillDetailPage renders Related Colorado Bills panel for co_internal matches", async () => {
+  (api.bill as jest.Mock).mockResolvedValue(billFixture);
+  (api.matches as jest.Mock).mockResolvedValue([relatedMatchFixture]);
+  const { getByText, getByRole } = render(<BillDetailPage />, { wrapper });
+  await waitFor(() => expect(getByText(/Related Colorado Bills/i)).toBeInTheDocument());
+  expect(getByText("Prohibit Discrimination Labor Union Participation")).toBeInTheDocument();
+  expect(getByRole("link", { name: /Prohibit Discrimination Labor Union Participation/i }))
+    .toHaveAttribute("href", "/bills/00000000-0000-0000-0000-0000000000cc");
+});
+
+test("BillDetailPage shows cross-state empty state AND related panel when only co_internal matches exist", async () => {
+  (api.bill as jest.Mock).mockResolvedValue(billFixture);
+  (api.matches as jest.Mock).mockResolvedValue([relatedMatchFixture]);
+  const { getByText } = render(<BillDetailPage />, { wrapper });
+  await waitFor(() => expect(getByText(/no similarity matches/i)).toBeInTheDocument());
+  expect(getByText(/Related Colorado Bills/i)).toBeInTheDocument();
 });

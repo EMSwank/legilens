@@ -19,6 +19,7 @@ async def test_get_matches_returns_list(client):
 
     bill_id = uuid4()
     match_id = uuid4()
+    matched_bill_id = uuid4()
 
     mock_match = MagicMock()
     mock_match.id = match_id
@@ -26,6 +27,8 @@ async def test_get_matches_returns_list(client):
     mock_match.matched_state = "TX"
     mock_match.similarity_score = Decimal("0.85")
     mock_match.snippet_status = "verified"
+    mock_match.match_type = "cross_state"
+    mock_match.matched_bill_id = matched_bill_id
     mock_match.matched_snippets = [
         {
             "kind": "snippet",
@@ -39,10 +42,8 @@ async def test_get_matches_returns_list(client):
     ]
 
     mock_session = AsyncMock()
-    scalars_result = MagicMock()
-    scalars_result.all.return_value = [mock_match]
     execute_result = MagicMock()
-    execute_result.scalars.return_value = scalars_result
+    execute_result.all.return_value = [(mock_match, "HB-1234")]
     mock_session.execute.return_value = execute_result
 
     async def override():
@@ -62,6 +63,7 @@ async def test_get_matches_returns_list(client):
     assert data[0]["matched_bill_title"] == "HB 1234 - Fee Act"
     assert data[0]["matched_state"] == "TX"
     assert data[0]["snippet_status"] == "verified"
+    assert data[0]["match_type"] == "cross_state"
     assert data[0]["matched_snippets"] is not None
     assert len(data[0]["matched_snippets"]) == 1
     assert data[0]["matched_snippets"][0]["kind"] == "snippet"
@@ -72,6 +74,7 @@ async def test_ghost_match_returns_message(client):
 
     bill_id = uuid4()
     match_id = uuid4()
+    matched_bill_id = uuid4()
 
     mock_match = MagicMock()
     mock_match.id = match_id
@@ -79,13 +82,13 @@ async def test_ghost_match_returns_message(client):
     mock_match.matched_state = "CA"
     mock_match.similarity_score = Decimal("0.72")
     mock_match.snippet_status = "source_verified_text_missing"
+    mock_match.match_type = "cross_state"
+    mock_match.matched_bill_id = matched_bill_id
     mock_match.matched_snippets = None
 
     mock_session = AsyncMock()
-    scalars_result = MagicMock()
-    scalars_result.all.return_value = [mock_match]
     execute_result = MagicMock()
-    execute_result.scalars.return_value = scalars_result
+    execute_result.all.return_value = [(mock_match, "SB-99")]
     mock_session.execute.return_value = execute_result
 
     async def override():
@@ -113,6 +116,7 @@ async def test_pending_match_has_null_snippets(client):
 
     bill_id = uuid4()
     match_id = uuid4()
+    matched_bill_id = uuid4()
 
     mock_match = MagicMock()
     mock_match.id = match_id
@@ -120,13 +124,13 @@ async def test_pending_match_has_null_snippets(client):
     mock_match.matched_state = "WA"
     mock_match.similarity_score = Decimal("0.91")
     mock_match.snippet_status = "pending"
+    mock_match.match_type = "cross_state"
+    mock_match.matched_bill_id = matched_bill_id
     mock_match.matched_snippets = None
 
     mock_session = AsyncMock()
-    scalars_result = MagicMock()
-    scalars_result.all.return_value = [mock_match]
     execute_result = MagicMock()
-    execute_result.scalars.return_value = scalars_result
+    execute_result.all.return_value = [(mock_match, "HB-500")]
     mock_session.execute.return_value = execute_result
 
     async def override():
@@ -157,10 +161,8 @@ async def test_empty_matches_returns_empty_list(client):
     bill_id = uuid4()
 
     mock_session = AsyncMock()
-    scalars_result = MagicMock()
-    scalars_result.all.return_value = []
     execute_result = MagicMock()
-    execute_result.scalars.return_value = scalars_result
+    execute_result.all.return_value = []
     mock_session.execute.return_value = execute_result
 
     async def override():
@@ -174,3 +176,43 @@ async def test_empty_matches_returns_empty_list(client):
 
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+async def test_co_internal_match_type_round_trips(client):
+    c, app, get_db = client
+
+    bill_id = uuid4()
+    match_id = uuid4()
+    matched_bill_id = uuid4()
+
+    mock_match = MagicMock()
+    mock_match.id = match_id
+    mock_match.matched_bill_title = "HB 1111 - Related Bill"
+    mock_match.matched_state = "CO"
+    mock_match.similarity_score = Decimal("0.82")
+    mock_match.snippet_status = "pending"
+    mock_match.matched_snippets = None
+    mock_match.match_type = "co_internal"
+    mock_match.matched_bill_id = matched_bill_id
+
+    mock_session = AsyncMock()
+    execute_result = MagicMock()
+    execute_result.all.return_value = [(mock_match, "HB 1111")]
+    mock_session.execute.return_value = execute_result
+
+    async def override():
+        yield mock_session
+
+    app.dependency_overrides[get_db] = override
+    try:
+        resp = await c.get(f"/bills/{bill_id}/matches", headers={"User-Agent": "TestClient/1.0"})
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["match_type"] == "co_internal"
+    assert data[0]["matched_bill_id"] == str(matched_bill_id)
+    assert data[0]["matched_bill_number"] == "HB 1111"
+    assert data[0]["matched_state"] == "CO"

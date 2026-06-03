@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { expectNoAxeViolations } from "./axe-helper";
 
-const statsFixture = { total_co_bills: 342, copycat_alerts: 17, bills_analyzed: 289 };
+const statsFixture = { total_co_bills: 342, copycat_alerts: 17, bills_analyzed: 289, related_co_bills: 125 };
 
 const billsFixture = [
   {
@@ -12,6 +12,7 @@ const billsFixture = [
     session: "2024A",
     status: "Introduced",
     copycat_alert: true,
+    has_related: true,
   },
   {
     id: "bill-2",
@@ -21,6 +22,7 @@ const billsFixture = [
     session: "2024A",
     status: "Passed",
     copycat_alert: false,
+    has_related: false,
   },
 ];
 
@@ -33,6 +35,7 @@ const searchResultsFixture = [
     session: "2024A",
     status: "Introduced",
     copycat_alert: false,
+    has_related: false,
   },
 ];
 
@@ -41,12 +44,20 @@ async function interceptDefault(page: Page) {
   await page.route("**/bills", (route) => route.fulfill({ json: billsFixture }));
 }
 
-test("stats grid renders 3 cards with numeric values", async ({ page }) => {
+test("stats grid renders 4 cards with numeric values", async ({ page }) => {
   await interceptDefault(page);
   await page.goto("/");
   await expect(page.getByText("289")).toBeVisible();
   await expect(page.getByText("17")).toBeVisible();
   await expect(page.getByText("342")).toBeVisible();
+  await expect(page.getByText("125")).toBeVisible();
+  await expect(page.getByText("CO Bills with Related Text")).toBeVisible();
+});
+
+test("related badge visible on bills with co_internal matches", async ({ page }) => {
+  await interceptDefault(page);
+  await page.goto("/");
+  await expect(page.getByText("Related", { exact: true })).toBeVisible();
 });
 
 test("bills list renders rows with links to /bills/[id]", async ({ page }) => {
