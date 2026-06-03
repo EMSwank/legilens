@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { expectNoAxeViolations } from "./axe-helper";
 
-const statsFixture = { total_co_bills: 342, copycat_alerts: 17, bills_analyzed: 289 };
+const statsFixture = { total_co_bills: 342, copycat_alerts: 17, bills_analyzed: 289, related_co_bills: 125 };
 
 const billsFixture = [
   {

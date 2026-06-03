@@ -17,6 +17,7 @@ export interface BillListItem {
   session: string;
   status: string | null;
   copycat_alert: boolean | null;
+  has_related: boolean;
 }
 
 export interface BillDetail {
@@ -58,12 +59,16 @@ export interface Match {
   similarity_score: number;
   snippet_status: SnippetStatus;
   matched_snippets: SnippetOrGhost[] | null;
+  match_type: "cross_state" | "co_internal";
+  matched_bill_id: string;
+  matched_bill_number: string | null;
 }
 
 export interface Stats {
   total_co_bills: number;
   copycat_alerts: number;
   bills_analyzed: number;
+  related_co_bills: number;
 }
 
 export interface TagCount {

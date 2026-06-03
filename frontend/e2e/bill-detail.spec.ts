@@ -29,6 +29,9 @@ const matchesFixture: Match[] = [
     matched_state: "TX",
     similarity_score: 87.3,
     snippet_status: "verified",
+    match_type: "cross_state",
+    matched_bill_id: "00000000-0000-0000-0000-000000000010",
+    matched_bill_number: "HB24-0001",
     matched_snippets: [
       {
         kind: "snippet" as const,
@@ -50,6 +53,9 @@ const matchesWithContextFixture: Match[] = [
     matched_state: "TX",
     similarity_score: 87.3,
     snippet_status: "verified",
+    match_type: "cross_state",
+    matched_bill_id: "00000000-0000-0000-0000-000000000013",
+    matched_bill_number: "HB24-0001",
     matched_snippets: [
       {
         kind: "snippet" as const,
@@ -71,6 +77,9 @@ const ghostMatchesFixture: Match[] = [
     matched_state: "FL",
     similarity_score: 78.1,
     snippet_status: "source_verified_text_missing",
+    match_type: "cross_state",
+    matched_bill_id: "00000000-0000-0000-0000-000000000011",
+    matched_bill_number: "SB24-0002",
     matched_snippets: [{ kind: "ghost" as const, message: "Source text unavailable for extraction" as const }],
   },
 ];
