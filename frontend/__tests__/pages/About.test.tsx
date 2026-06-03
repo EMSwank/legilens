@@ -33,6 +33,11 @@ test("About page includes the ShingleDiagram", () => {
   expect(screen.getByRole("img", { name: /shingl/i })).toBeInTheDocument();
 });
 
+test("About page explains related CO bills are never counted as a copycat alert", () => {
+  render(<About />);
+  expect(screen.getByText(/never counted as a copycat alert/i)).toBeInTheDocument();
+});
+
 test("About page lists all 6 friction tags in the glossary", () => {
   render(<About />);
   const tags = [
