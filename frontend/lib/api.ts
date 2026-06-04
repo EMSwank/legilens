@@ -1,4 +1,4 @@
-import type { BillListItem, BillDetail, Match, Stats, TagCount } from "./types";
+import type { BillListItem, BillDetail, Match, Stats, TagCount, Coverage } from "./types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const HEADERS = { "User-Agent": "LegiLens-Frontend/1.0" };
@@ -29,4 +29,5 @@ export const api = {
     get<Stats>("/stats"),
   tags: (): Promise<TagCount[]> => get<TagCount[]>("/tags"),
   sessions: (): Promise<string[]> => get<string[]>("/bills/sessions"),
+  coverage: (): Promise<Coverage> => get<Coverage>("/coverage"),
 };

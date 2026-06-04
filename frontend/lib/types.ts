@@ -75,3 +75,17 @@ export interface TagCount {
   tag_type: string;
   count: number;
 }
+
+export interface StateCoverage {
+  state: string;
+  fetchable: number;
+  with_sig: number;
+  status: "complete" | "in_progress" | "not_started";
+}
+
+export interface Coverage {
+  status: "ready" | "pending";
+  as_of: string | null;
+  matchable_pct: number | null;
+  states: StateCoverage[];
+}
