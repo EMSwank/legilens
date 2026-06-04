@@ -15,13 +15,31 @@ from sqlalchemy import case, select
 
 from app.models.bill import Bill
 
-# Keep tiers 0 (CO) + 1 (these five) in sync with app.services.coverage.SCOPE,
+# Keep tiers 0 (CO) + 1 (these states) in sync with app.services.coverage.SCOPE,
 # the coverage tracker's matchable-% denominator. Change both together.
-_TOP5_STATES = ["CA", "NY", "IL", "TX", "FL"]
+# NY is intentionally NOT here in WS2 v1: it is ~150k bills (~6.5 months alone) and is
+# deferred to tier 2. Re-promote NY to this list AND to coverage.SCOPE together when the
+# national tail is funded (and bump the Neon spend cap at the same time).
+_TIER1_STATES = ["CA", "IL", "TX", "FL"]
+
+
+def tier_for(state: str) -> int:
+    """Pure-Python mirror of the SQL _STATE_PRIORITY case below.
+
+    Exists so the mock-only test suite can verify tier membership (esp. that NY is
+    excluded from tier 1) without a real DB — the SQL case() itself is exercised by a
+    read-only Neon probe, not by unit tests.
+    """
+    if state == "CO":
+        return 0
+    if state in _TIER1_STATES:
+        return 1
+    return 2
+
 
 _STATE_PRIORITY = case(
     (Bill.state == "CO", 0),
-    (Bill.state.in_(_TOP5_STATES), 1),
+    (Bill.state.in_(_TIER1_STATES), 1),
     else_=2,
 )
 
