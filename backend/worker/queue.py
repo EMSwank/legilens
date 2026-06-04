@@ -2,7 +2,7 @@
 
 Bills are fetched in priority order:
   0 — Colorado (focus state)
-  1 — CA, NY, IL, TX, FL (top corpus states)
+  1 — CA, IL, TX, FL (tier-1 comparison states; NY deferred to tier 2 in WS2)
   2 — all remaining states (alphabetical)
 
 Exclusion rules (applied in SQL):
