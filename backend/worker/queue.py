@@ -49,6 +49,7 @@ async def next_queued_bills(
     *,
     batch_size: int,
     priority_state: str | None = None,
+    max_priority_tier: int | None = None,
 ) -> list[Bill]:
     """Returns up to batch_size bills needing text fetch, ordered by priority.
 
@@ -57,6 +58,10 @@ async def next_queued_bills(
         batch_size: maximum rows to return
         priority_state: if set, only return bills from this state (e.g. "CO"
                         for the initial burst phase)
+        max_priority_tier: if set, only return bills whose state priority tier is
+                           <= this value (0=CO, 1=tier-1 comparison states, 2=rest).
+                           max_priority_tier=1 is the steady-state corpus build (CO +
+                           tier-1, NY excluded — NY is tier 2).
     """
     stmt = (
         select(Bill)
@@ -70,6 +75,9 @@ async def next_queued_bills(
 
     if priority_state is not None:
         stmt = stmt.where(Bill.state == priority_state)
+
+    if max_priority_tier is not None:
+        stmt = stmt.where(_STATE_PRIORITY <= max_priority_tier)
 
     result = await session.execute(stmt)
     return result.scalars().all()
