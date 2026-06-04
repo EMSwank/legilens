@@ -5,7 +5,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from app.config import settings
-from app.routers import bills, matches, tags, stats
+from app.routers import bills, matches, tags, stats, coverage
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
@@ -26,3 +26,4 @@ app.include_router(bills.router)
 app.include_router(matches.router)
 app.include_router(tags.router)
 app.include_router(stats.router)
+app.include_router(coverage.router)

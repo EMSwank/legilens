@@ -71,6 +71,11 @@ function DashboardContent() {
         <p className="mt-2 text-slate-400">
           Quantifying the Friction Gap in the Colorado General Assembly.
         </p>
+        <p className="mt-3">
+          <Link href="/coverage" className="text-sm text-blue-300 underline hover:text-blue-200">
+            Corpus coverage →
+          </Link>
+        </p>
       </header>
 
       {statsError ? (

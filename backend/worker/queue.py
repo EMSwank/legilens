@@ -15,6 +15,8 @@ from sqlalchemy import case, select
 
 from app.models.bill import Bill
 
+# Keep tiers 0 (CO) + 1 (these five) in sync with app.services.coverage.SCOPE,
+# the coverage tracker's matchable-% denominator. Change both together.
 _TOP5_STATES = ["CA", "NY", "IL", "TX", "FL"]
 
 _STATE_PRIORITY = case(
