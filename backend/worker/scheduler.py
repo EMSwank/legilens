@@ -17,6 +17,7 @@ from worker.tasks.evidence import extract_all_pending_evidence
 from worker.tasks.fetch_bill_texts import fetch_bill_texts
 from worker.tasks.ingest import ingest_all_states
 from worker.tasks.match import match_co_bills
+from worker.tasks.coverage import compute_and_store_coverage_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,12 @@ async def fetch_and_match() -> None:
     logger.info("fetch_and_match: fetched %d CO bills", count)
     if count > 0:
         await match_co_bills()
+    # Refresh the coverage snapshot every night regardless of fetch count, and
+    # never let a snapshot failure break the cron.
+    try:
+        await compute_and_store_coverage_snapshot()
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.exception("Coverage snapshot failed")
     logger.info("fetch_and_match: done")
 
 

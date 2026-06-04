@@ -234,7 +234,8 @@ async def test_fetch_and_match_runs_fetch_then_match():
     from unittest.mock import patch, AsyncMock
 
     with patch("worker.scheduler.fetch_bill_texts", new=AsyncMock(return_value=42)) as fetch, \
-         patch("worker.scheduler.match_co_bills", new=AsyncMock()) as match:
+         patch("worker.scheduler.match_co_bills", new=AsyncMock()) as match, \
+         patch("worker.scheduler.compute_and_store_coverage_snapshot", new=AsyncMock()):
         await fetch_and_match()
 
     fetch.assert_awaited_once_with(batch_size=1000, priority_state="CO")
@@ -246,7 +247,32 @@ async def test_fetch_and_match_skips_match_when_zero_fetched():
     from unittest.mock import patch, AsyncMock
 
     with patch("worker.scheduler.fetch_bill_texts", new=AsyncMock(return_value=0)), \
-         patch("worker.scheduler.match_co_bills", new=AsyncMock()) as match:
+         patch("worker.scheduler.match_co_bills", new=AsyncMock()) as match, \
+         patch("worker.scheduler.compute_and_store_coverage_snapshot", new=AsyncMock()):
         await fetch_and_match()
 
     match.assert_not_awaited()
+
+
+async def test_fetch_and_match_computes_coverage_snapshot():
+    from worker.scheduler import fetch_and_match
+    from unittest.mock import patch, AsyncMock
+
+    with patch("worker.scheduler.fetch_bill_texts", new=AsyncMock(return_value=0)), \
+         patch("worker.scheduler.match_co_bills", new=AsyncMock()), \
+         patch("worker.scheduler.compute_and_store_coverage_snapshot", new=AsyncMock()) as snap:
+        await fetch_and_match()
+
+    # Snapshot runs even when 0 bills were fetched (coverage refreshes nightly).
+    snap.assert_awaited_once()
+
+
+async def test_fetch_and_match_survives_snapshot_failure():
+    from worker.scheduler import fetch_and_match
+    from unittest.mock import patch, AsyncMock
+
+    with patch("worker.scheduler.fetch_bill_texts", new=AsyncMock(return_value=5)), \
+         patch("worker.scheduler.match_co_bills", new=AsyncMock()), \
+         patch("worker.scheduler.compute_and_store_coverage_snapshot",
+               new=AsyncMock(side_effect=RuntimeError("boom"))):
+        await fetch_and_match()  # must not raise
