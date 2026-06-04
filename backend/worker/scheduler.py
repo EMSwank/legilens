@@ -26,25 +26,27 @@ BOOTSTRAP_DEBOUNCE = timedelta(days=7)
 
 
 async def fetch_and_match() -> None:
-    """Daily steady-state: fetch ~1k queued CO bill texts then run match phase.
+    """Daily steady-state: fetch ~1k queued bill texts (CO + tier-1 comparison
+    states, NY excluded) then run the match phase.
 
     Runs after run_full_pipeline (03:00). Quota guard inside fetch_bill_texts
-    prevents overrun even if called extra times.
+    (QUOTA_HARD_LIMIT=27_000/mo) prevents overrun even if called extra times.
 
-    priority_state="CO" is a deliberate gate, not an optimization. Without it,
-    fetch_bill_texts drains the *global* queue by priority (CO=0, top5=1,
-    rest=2); once CO is exhausted (~9 nights) the same cron would roll into
-    ~300k non-CO bills, fetching per-bill full_text via getBillText — roughly
-    11 months at the quota-capped ~1k/night, plus multiple GB of Postgres
-    storage. Populating the national corpus is a separate, explicit decision
-    (scope, storage tier, and method are unresolved); the steady-state loop
-    stays scoped to the focus state until then.
-    Remove this argument only with an explicit decision to fund a national
-    non-CO text fetch.
+    max_priority_tier=1 un-gates the fetch from CO-only (PR #58) to CO + tier-1.
+    This is the WS2 decision (docs/superpowers/specs/
+    2026-06-02-co-related-bills-coverage-tracker-design.md §4): fund a bounded
+    cross-state corpus so real cross-state copycat alerts can surface. New York
+    is deliberately deferred — it is ~150k bills (~6.5 months at the quota cap)
+    and is demoted to tier 2 in worker/queue.py; it is fetched only when the
+    national tail is explicitly funded and the Neon spend cap is raised.
+
+    Reassess trigger: when CO + tier-1 reach ~complete on /coverage, evaluate
+    whether real cross-state copycat_alerts appeared. If yes, plan widening
+    (re-promote NY, then the rest). If no, stop. Document in a follow-up.
     """
     logger.info("fetch_and_match: start")
-    count = await fetch_bill_texts(batch_size=1000, priority_state="CO")
-    logger.info("fetch_and_match: fetched %d CO bills", count)
+    count = await fetch_bill_texts(batch_size=1000, max_priority_tier=1)
+    logger.info("fetch_and_match: fetched %d bills (CO + tier-1, NY deferred)", count)
     if count > 0:
         await match_co_bills()
     # Refresh the coverage snapshot every night regardless of fetch count, and
