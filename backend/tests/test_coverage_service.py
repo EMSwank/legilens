@@ -8,8 +8,11 @@ from app.services.coverage import (
 )
 
 
-def test_scope_is_co_plus_top5():
-    assert set(SCOPE) == {"CO", "CA", "NY", "IL", "TX", "FL"}
+def test_scope_is_co_plus_tier1_excludes_ny():
+    # NY is deferred (tier 2) in WS2 v1 — it must NOT be in the matchable-% denominator,
+    # or its ~150k never-fetched bills pin the thermometer near ~14%.
+    assert set(SCOPE) == {"CO", "CA", "IL", "TX", "FL"}
+    assert "NY" not in SCOPE
 
 
 def test_aggregate_counts_fetchable_and_with_sig():

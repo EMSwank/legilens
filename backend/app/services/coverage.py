@@ -7,13 +7,15 @@ exercised in CI. The worker feeds aggregate_coverage() one boolean-per-bill row
 signature rows cannot fan-out double-count.
 
 SCOPE must stay in sync with backend/worker/queue.py _STATE_PRIORITY tiers 0+1
-(CO + top-5). If the fetch scope changes, change both.
+(CO + tier-1; NY deferred to tier 2 in WS2 v1). If the fetch scope changes, change both.
 """
 import json
 from collections.abc import Iterable
 
-# CO (tier 0) + the five comparison states (tier 1 in queue._STATE_PRIORITY).
-SCOPE: tuple[str, ...] = ("CO", "CA", "NY", "IL", "TX", "FL")
+# CO (tier 0) + the tier-1 comparison states (currently CA/IL/TX/FL).
+# NY is deferred to tier 2 in WS2 v1, so it is intentionally NOT in scope — including it
+# would pin the matchable-% thermometer near ~14% (its ~150k bills are never fetched).
+SCOPE: tuple[str, ...] = ("CO", "CA", "IL", "TX", "FL")
 
 
 def aggregate_coverage(rows: Iterable[tuple[str, bool, bool]]) -> dict[str, dict[str, int]]:
