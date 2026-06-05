@@ -73,10 +73,22 @@ async def match_co_bills():  # pylint: disable=too-many-locals
         # or two-pass bootstrap) don't accumulate duplicate ISTScore /
         # SimilarityMatch rows. Bills/list and bills/detail use scalar_one_or_none
         # on ISTScore and would 500 on duplicates.
+        #
+        # PERF (load-bearing): the DELETE is NOT committed here. The whole run —
+        # delete + every CO ISTScore/SimilarityMatch insert — is staged in ONE
+        # transaction and committed exactly once at the end of this function. The
+        # per-bill helpers (_find_matches_for_bill / _find_co_internal_matches)
+        # only session.add(); they must NEVER commit. The previous code committed
+        # once per CO bill inside the pass-1 loop: 6997 serial INSERT+COMMIT round
+        # trips to EU-West Neon at ~0.53s each = 3693s (61.5 min) in prod. Pass 2
+        # looked ~25x faster only because its no-match commits were no-ops (no
+        # pending rows → no round trip). A single batched commit collapses 6997
+        # round trips to one flush and makes the delete+rebuild an atomic swap
+        # (readers see last run's scores via MVCC until commit; a mid-run failure
+        # rolls back to the prior night instead of leaving a half-rebuilt table).
         co_bill_ids = select(Bill.id).where(Bill.is_corpus_only.is_(False))
         await session.execute(delete(SimilarityMatch).where(SimilarityMatch.bill_id.in_(co_bill_ids)))
         await session.execute(delete(ISTScore).where(ISTScore.bill_id.in_(co_bill_ids)))
-        await session.commit()
 
         # Build LSH-backed corpus index. With NUM_PERM=128 and bands threshold
         # 0.7, candidate retrieval is sublinear in corpus size — the prior
@@ -146,7 +158,22 @@ async def match_co_bills():  # pylint: disable=too-many-locals
             len(co_entries), time.monotonic() - t_co_start,
         )
 
+        # Single batched commit for the whole run (see the PERF note at the top
+        # of this function). Flushes the delete + all staged ISTScore /
+        # SimilarityMatch inserts in one transaction. SQLAlchemy's
+        # insertmanyvalues batches the ~7k inserts into a handful of multi-row
+        # statements, so this is ~tens of round trips total, not one per bill.
+        t_commit_start = time.monotonic()
+        await session.commit()
+        logger.info("match: committed all CO match output in %.2fs", time.monotonic() - t_commit_start)
+
 async def _find_matches_for_bill(session, co_bill_id: UUID, co_m, corpus: CorpusIndex):
+    """Stage one CO bill's ISTScore (+ any cross_state SimilarityMatch) rows.
+
+    COMMIT CONTRACT (load-bearing perf, see match_co_bills): session.add() ONLY,
+    never commit. match_co_bills batches a single commit for the whole run. A
+    per-bill commit here reintroduces 6997 serial round trips to Neon (3693s).
+    """
     if len(corpus) == 0:
         score = ISTScore(
             bill_id=co_bill_id,
@@ -154,7 +181,6 @@ async def _find_matches_for_bill(session, co_bill_id: UUID, co_m, corpus: Corpus
             copycat_alert=False,
         )
         session.add(score)
-        await session.commit()
         return
 
     candidates = corpus.query(co_m)
@@ -189,7 +215,6 @@ async def _find_matches_for_bill(session, co_bill_id: UUID, co_m, corpus: Corpus
         copycat_alert=authenticity < Decimal("30.00"),
     )
     session.add(score)
-    await session.commit()
 
 
 def _normalize_bill_number(number: str) -> str:
@@ -213,6 +238,9 @@ async def _find_co_internal_matches(session, co_bill_id: UUID, co_m, co_index: C
     _find_matches_for_bill, which never contains CO bills. Each unordered pair
     {A,B} is found twice (A->B and B->A); accepted, each bill's detail page shows
     its own related bills (spec section 3).
+
+    COMMIT CONTRACT (load-bearing perf, see match_co_bills): session.add() ONLY,
+    never commit. The single batched commit is owned by match_co_bills.
     """
     self_number = _normalize_bill_number(co_meta[co_bill_id][0])
     for cand_id, _cand_state, cand_number, cand_m in co_index.query(co_m):
@@ -232,4 +260,3 @@ async def _find_co_internal_matches(session, co_bill_id: UUID, co_m, co_index: C
             snippet_status="pending",
             match_type="co_internal",
         ))
-    await session.commit()
