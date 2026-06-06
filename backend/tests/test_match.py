@@ -412,3 +412,90 @@ async def test_co_internal_below_threshold_writes_no_match():
 
     added = [call.args[0] for call in mock_session.add.call_args_list]
     assert not any(isinstance(x, SimilarityMatch) for x in added)
+
+
+async def test_find_matches_for_bill_does_not_commit():
+    """Perf guard: a per-bill commit cost 6997 serial INSERT+COMMIT round trips
+    to EU-West Neon (~0.53s each = 3693s in prod). Commit ownership belongs to
+    match_co_bills, which batches a single commit per run. The per-bill helper
+    must NOT commit."""
+    from worker.tasks.match import _find_matches_for_bill, CorpusIndex
+
+    co_m = compute_minhash("Unique Colorado bill text with no parallels anywhere.")
+    index = CorpusIndex()
+    index.add(uuid4(), "TX", "HB-1", compute_minhash("Quantum entanglement at subatomic scales."))
+
+    mock_session = AsyncMock()
+    mock_session.add = MagicMock()
+    mock_session.commit = AsyncMock()
+
+    await _find_matches_for_bill(mock_session, uuid4(), co_m, index)
+
+    mock_session.commit.assert_not_called()
+
+
+async def test_find_co_internal_matches_does_not_commit():
+    """Mirror of the cross-state guard: the CO-internal helper must not commit
+    either; match_co_bills owns the single batched commit."""
+    from worker.tasks.match import _find_co_internal_matches, CorpusIndex
+
+    text = "The commission shall establish fees not to exceed one hundred dollars per application submitted to the board."
+    a, b = uuid4(), uuid4()
+    co_index = CorpusIndex()
+    co_index.add(a, "CO", "HB-1", compute_minhash(text))
+    co_index.add(b, "CO", "SB-2", compute_minhash(text))
+    co_meta = {a: ("HB-1", "Bill A"), b: ("SB-2", "Bill B")}
+
+    mock_session = AsyncMock()
+    mock_session.add = MagicMock()
+    mock_session.commit = AsyncMock()
+
+    await _find_co_internal_matches(mock_session, a, compute_minhash(text), co_index, co_meta)
+
+    mock_session.commit.assert_not_called()
+
+
+async def test_match_co_bills_commits_once_not_per_bill():
+    """Root-cause regression guard. The old code committed once per CO bill
+    inside the pass loops (6997 serial round trips). match_co_bills must
+    accumulate all writes and commit exactly once for the whole run, regardless
+    of bill count. Also guards against dropping the commit entirely (no persist).
+    """
+    import worker.tasks.match as match_mod
+    from worker.tasks.match import match_co_bills
+
+    text = "The commission shall establish fees not to exceed one hundred dollars per application submitted to the board."
+    sig_vals = [int(x) for x in compute_minhash(text).hashvalues]
+
+    def make_sig():
+        return MagicMock(signature=list(sig_vals))
+
+    bill_a = MagicMock(id=uuid4(), state="CO", bill_number="HB-1", title="Bill A")
+    bill_b = MagicMock(id=uuid4(), state="CO", bill_number="SB-2", title="Bill B")
+    co_rows_result = MagicMock()
+    co_rows_result.all = MagicMock(return_value=[(make_sig(), bill_a), (make_sig(), bill_b)])
+
+    mock_session = AsyncMock()
+    mock_session.add = MagicMock()
+    mock_session.commit = AsyncMock()
+    # execute() call order in match_co_bills: delete SimilarityMatch, delete
+    # ISTScore, select(cross-state corpus) [iterated], select(CO rows) [.all()].
+    mock_session.execute = AsyncMock(side_effect=[
+        MagicMock(),     # delete SimilarityMatch
+        MagicMock(),     # delete ISTScore
+        [],              # empty cross-state corpus (iterated -> no corpus bills)
+        co_rows_result,  # 2 CO bills (.all())
+    ])
+
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=mock_session)
+    cm.__aexit__ = AsyncMock(return_value=False)
+
+    with patch.object(match_mod, "async_session", return_value=cm):
+        await match_co_bills()
+
+    # 2 CO bills. Old per-bill code: 1 (delete) + 2 (pass 1) + 2 (pass 2) = 5.
+    # Batched code: exactly 1 commit for the whole run, independent of count.
+    assert mock_session.commit.await_count == 1, (
+        f"committed {mock_session.commit.await_count}x — per-bill commit, not batched"
+    )
