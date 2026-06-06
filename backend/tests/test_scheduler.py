@@ -92,23 +92,22 @@ def _fake_client_two_lists(co_list, all_list):
     return client
 
 
-async def test_run_full_pipeline_fetches_co_then_full_and_passes_each_to_its_ingest():
+async def test_run_full_pipeline_fetches_co_then_tier1_then_full_and_passes_each_to_its_ingest():
     from worker import scheduler
 
-    co_list = [{"session_id": 1}]
     all_list = [{"session_id": 1}, {"session_id": 2}]
-    client = _fake_client_two_lists(co_list, all_list)
+    client = _fake_client_per_state(all_list)
 
-    calls: list[tuple[str, dict]] = []
+    calls: list[tuple[str, object]] = []
 
     async def fake_ingest(datasets=None):
-        calls.append(("ingest", {"datasets": datasets}))
+        calls.append(("ingest", datasets))
 
     async def fake_match():
-        calls.append(("match", {}))
+        calls.append(("match", None))
 
     async def fake_evidence():
-        calls.append(("evidence", {}))
+        calls.append(("evidence", None))
 
     with patch.object(scheduler, "LegiScanClient", return_value=client), patch.object(
         scheduler, "ingest_all_states", fake_ingest
@@ -118,16 +117,51 @@ async def test_run_full_pipeline_fetches_co_then_full_and_passes_each_to_its_ing
         result = await scheduler.run_full_pipeline()
 
     assert result is True
-    # Two getDatasetList calls: CO-filtered, then unfiltered
-    assert client.get_dataset_list.await_count == 2
-    assert client.get_dataset_list.await_args_list[0].kwargs == {"state": "CO"}
-    assert client.get_dataset_list.await_args_list[1].kwargs == {}
+    # getDatasetList: CO, then each tier-1 comparison state, then unfiltered (pass 2).
+    states = [c.kwargs.get("state") for c in client.get_dataset_list.await_args_list]
+    assert states == ["CO", "CA", "IL", "TX", "FL", None]
+    # Ingest order mirrors that, then match + evidence.
     assert calls == [
-        ("ingest", {"datasets": co_list}),
-        ("ingest", {"datasets": all_list}),
-        ("match", {}),
-        ("evidence", {}),
+        ("ingest", [{"_state": "CO"}]),
+        ("ingest", [{"_state": "CA"}]),
+        ("ingest", [{"_state": "IL"}]),
+        ("ingest", [{"_state": "TX"}]),
+        ("ingest", [{"_state": "FL"}]),
+        ("ingest", all_list),
+        ("match", None),
+        ("evidence", None),
     ]
+
+
+async def test_run_full_pipeline_tier1_state_failure_does_not_abort():
+    """A single tier-1 state failing (transient getDataset/parse error) must not
+    abort the pipeline: the other states, pass 2, and match/evidence still run, and
+    the run still reports success so the nightly rerun simply retries the failed
+    state (dataset dedup makes successful states a no-op on retry)."""
+    from worker import scheduler
+
+    client = _fake_client_per_state([{"session_id": 1}])
+    ingested = []
+
+    async def fake_ingest(datasets=None):
+        if datasets == [{"_state": "TX"}]:
+            raise RuntimeError("TX dataset download failed")
+        ingested.append(datasets)
+
+    with patch.object(scheduler, "LegiScanClient", return_value=client), patch.object(
+        scheduler, "ingest_all_states", fake_ingest
+    ), patch.object(scheduler, "match_co_bills", AsyncMock()) as match_mock, patch.object(
+        scheduler, "extract_all_pending_evidence", AsyncMock()
+    ) as evidence_mock:
+        result = await scheduler.run_full_pipeline()
+
+    assert result is True
+    match_mock.assert_awaited_once()
+    evidence_mock.assert_awaited_once()
+    # CO, the tier-1 state after TX (FL), and pass 2 all ingested despite TX failing.
+    assert [{"_state": "CO"}] in ingested
+    assert [{"_state": "FL"}] in ingested
+    assert [{"session_id": 1}] in ingested
 
 
 async def test_run_full_pipeline_aborts_on_ingest_failure():
@@ -276,3 +310,47 @@ async def test_fetch_and_match_survives_snapshot_failure():
          patch("worker.scheduler.compute_and_store_coverage_snapshot",
                new=AsyncMock(side_effect=RuntimeError("boom"))):
         await fetch_and_match()  # must not raise
+
+
+def _fake_client_per_state(all_list):
+    """LegiScanClient whose get_dataset_list(state=X) returns a per-state marker
+    [{"_state": X}], and the unfiltered call returns all_list. Lets a test assert
+    which states' datasets flowed to ingest_all_states."""
+    client = AsyncMock()
+
+    async def _get(state=None):
+        return all_list if state is None else [{"_state": state}]
+
+    client.get_dataset_list = AsyncMock(side_effect=_get)
+    client.close = AsyncMock()
+    return client
+
+
+async def test_run_full_pipeline_ingests_tx_in_scope_pass():
+    """Regression guard for prod TX=0: TX (LegiScan state_id 43) lives in the
+    state_id>=34 tail that pass 2's state_id-ordered march never reaches, so it
+    was never ingested. run_full_pipeline must ingest TX directly via the bounded
+    tier-1 scope pass, independent of whether pass 2 ever completes a full sweep."""
+    from worker import scheduler
+
+    client = _fake_client_per_state([{"session_id": 9}])
+    ingested = []
+
+    async def fake_ingest(datasets=None):
+        ingested.append(datasets)
+
+    with patch.object(scheduler, "LegiScanClient", return_value=client), patch.object(
+        scheduler, "ingest_all_states", fake_ingest
+    ), patch.object(scheduler, "match_co_bills", AsyncMock()), patch.object(
+        scheduler, "extract_all_pending_evidence", AsyncMock()
+    ):
+        result = await scheduler.run_full_pipeline()
+
+    assert result is True
+    # TX datasets (from getDatasetList(state="TX")) were handed to ingest.
+    assert [{"_state": "TX"}] in ingested
+    # And TX was fetched via the server-side state filter, exactly once.
+    tx_calls = [
+        c for c in client.get_dataset_list.await_args_list if c.kwargs.get("state") == "TX"
+    ]
+    assert len(tx_calls) == 1

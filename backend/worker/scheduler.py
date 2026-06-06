@@ -70,10 +70,56 @@ async def _run_match_and_evidence() -> bool:
     return True
 
 
+# Tier-1 cross-state comparison states, ingested via a bounded per-state pass so
+# the comparison corpus never depends on pass 2's full 995-dataset, state_id-ordered
+# march completing — which in practice it does not. getDatasetList is ordered by
+# state_id; pass 2 restarts from index 0 every run and re-downloads weekly-changed
+# early-state datasets, so the frontier never crosses the state_id>=34 tail. TX is
+# state_id 43 and so sits in that never-reached tail (prod symptom: bills.TX = 0),
+# even though CA(5)/IL(13)/FL(9) land fine in pass 2's early window.
+#
+# This is coverage.SCOPE / queue._TOP5_STATES minus CO (already ingested in pass 1)
+# and minus NY: NY is state_id 32 and already fully ingested (~185k bills), so
+# re-pulling its dataset every run would be pure cost without reaching any missing
+# state. (Re-add NY here only alongside an explicit national-tail decision.)
+_TIER1_INGEST_STATES = ["CA", "IL", "TX", "FL"]
+
+
+async def _ingest_scope_states(client: LegiScanClient, states: list[str]) -> None:
+    """Ingest each state's datasets via the server-side getDatasetList(state=)
+    filter — the same mechanism pass 1 uses for CO.
+
+    Best-effort per state: one state failing is logged and skipped so it can never
+    abort the pipeline, and the nightly rerun retries it (dataset dedup makes the
+    retry a no-op once the state has landed). Already-present states (CA/IL/FL)
+    dedup-skip without a download; only the genuinely-missing tail state (TX)
+    actually transfers data.
+    """
+    for state in states:
+        try:
+            datasets = await client.get_dataset_list(state=state)
+            logger.info(
+                "Pipeline (pass=tier1): ingesting state=%s (%d datasets)",
+                state, len(datasets),
+            )
+            await ingest_all_states(datasets=datasets)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception(
+                "tier-1 scope ingest for state=%s failed; continuing", state
+            )
+
+
 async def run_full_pipeline() -> bool:
     """Bootstrap-friendly pipeline: ingest CO first so the live site has data
-    quickly, then ingest the remaining 49 states and run match + evidence
-    against the full corpus.
+    quickly, then ingest the tier-1 comparison states, then the remaining states,
+    and finally run match + evidence against the full corpus.
+
+    Pass tier1 (_ingest_scope_states) is a bounded per-state ingest of the
+    cross-state comparison states (_TIER1_INGEST_STATES). It exists because pass 2
+    iterates all ~995 datasets in state_id order from the top each run and never
+    completes a full sweep, so the state_id>=34 tail — which includes TX — was
+    never ingested. Running the wanted comparison states directly, up front, makes
+    the corpus independent of pass 2 finishing.
 
     Pass 1 uses LegiScan's server-side state filter (getDatasetList?state=CO)
     rather than client-side filtering — the datasetlist payload has no
@@ -100,6 +146,14 @@ async def run_full_pipeline() -> bool:
         except Exception:  # pylint: disable=broad-exception-caught
             logger.exception("CO ingest failed; aborting pipeline run")
             return False
+
+        # Pass tier1: bounded ingest of the cross-state comparison states so the
+        # corpus is built regardless of whether pass 2's full march ever completes.
+        logger.info(
+            "Pipeline (pass=tier1): ingesting tier-1 comparison states %s",
+            _TIER1_INGEST_STATES,
+        )
+        await _ingest_scope_states(client, _TIER1_INGEST_STATES)
 
         try:
             all_datasets = await client.get_dataset_list()
