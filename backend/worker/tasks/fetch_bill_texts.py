@@ -37,7 +37,10 @@ QUOTA_HARD_LIMIT = 27_000  # leaves 3k headroom for ingest + retries
 
 
 async def fetch_bill_texts(
-    *, batch_size: int = 50, priority_state: str | None = None
+    *,
+    batch_size: int = 50,
+    priority_state: str | None = None,
+    max_priority_tier: int | None = None,
 ) -> int:
     """Fetches up to batch_size bills needing text.
 
@@ -58,7 +61,10 @@ async def fetch_bill_texts(
             return 0
 
         bills = await next_queued_bills(
-            session, batch_size=batch_size, priority_state=priority_state
+            session,
+            batch_size=batch_size,
+            priority_state=priority_state,
+            max_priority_tier=max_priority_tier,
         )
 
     if not bills:

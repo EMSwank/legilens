@@ -71,7 +71,8 @@ MVP shipped — deployed on Railway (backend) + Vercel (frontend). Post-MVP modu
 | Bootstrap & resilience | Fresh DB session per dataset, CO-first two-pass bootstrap, Postgres-backed bootstrap debounce, server-side state filter for pass=1 | ✅ Complete |
 | Match-phase perf & schema | LSH-backed sublinear match (sub-second corpus lookups), `UNIQUE` constraint + Postgres upsert on `minhash_signatures.bill_id` | ✅ Complete |
 | Intra-CO Related Bills | Two-pass match: cross-state copycat detection plus a Colorado-internal pass that surfaces companion bills and reintroductions sharing ≥70% text — kept strictly separate from the copycat signal | ✅ Complete |
-| Coverage Tracker | A `/coverage` page showing per-state ingest progress and a headline "matchable %" scoped to Colorado + 5 comparison states — turning the slow corpus build into transparency | ✅ Complete |
+| Coverage Tracker | A `/coverage` page showing per-state ingest progress and a headline "matchable %" scoped to Colorado + 4 comparison states (CA/IL/TX/FL) — turning the slow corpus build into transparency | ✅ Complete |
+| Cron Un-gate (NY deferred) | Un-gated the nightly fetch from Colorado-only to Colorado + four comparison states, so the corpus accrues cross-state text fingerprints and real cross-state copycat alerts can surface over time. New York (~150k bills, a multi-month fetch on its own) is deferred to a later, separately-funded phase | 🟡 PR open |
 
 ### Intra-CO Related Bills — what shipped
 
@@ -83,7 +84,7 @@ MVP shipped — deployed on Railway (backend) + Vercel (frontend). Post-MVP modu
 ### Coverage Tracker — what shipped
 
 - A `/coverage` page that makes the corpus build visible: per-state ingest status (complete / in progress / not started) and a single headline **matchable %** — the share of fetchable bills that have a text fingerprint
-- The headline metric is **scoped to the current ingest target** (Colorado + CA/NY/IL/TX/FL) and labeled as such, so it reads as a real "% completed" thermometer instead of a few-percent-forever number against the full ~1M-bill corpus
+- The headline metric is **scoped to the current ingest target** (Colorado + CA/IL/TX/FL; New York deferred) and labeled as such, so it reads as a real "% completed" thermometer instead of a few-percent-forever number against the full ~1M-bill corpus
 - Computed once per night by the worker (a per-state snapshot persisted as JSON in Postgres) and read by a fast `GET /coverage`; shows a "computing" state until the first run completes
 - Accessible by construction: a per-state data table is the source of truth (status conveyed as text, not color alone), with the visual status dots as decoration; zero database migrations
 

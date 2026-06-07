@@ -34,8 +34,9 @@ export default function Coverage() {
         <p className="mt-3 text-slate-400">
           LegiLens cross-state copycat detection only works where bill text has been
           ingested and fingerprinted. This page tracks progress toward the current
-          ingest target — Colorado plus five comparison states (CA, NY, IL, TX, FL).
-          Remaining states are queued for a later phase.
+          ingest target — Colorado plus four comparison states (CA, IL, TX, FL).
+          New York and the remaining states are queued for a later phase; each
+          state appears in the table below as its bills are ingested.
         </p>
         <p className="mt-3">
           <Link href="/" className="text-sm text-blue-300 underline hover:text-blue-200">
@@ -72,7 +73,7 @@ export default function Coverage() {
               {data.matchable_pct === null ? "—" : `${data.matchable_pct}%`}
             </p>
             <p className="mt-1 text-sm text-slate-400">
-              of fetchable bills in Colorado + 5 comparison states have a text fingerprint.
+              of fetchable bills in Colorado + 4 comparison states have a text fingerprint.
               {data.matchable_pct === null && " No in-scope bills are ingested yet."}
             </p>
             <div

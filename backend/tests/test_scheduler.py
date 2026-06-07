@@ -272,7 +272,7 @@ async def test_fetch_and_match_runs_fetch_then_match():
          patch("worker.scheduler.compute_and_store_coverage_snapshot", new=AsyncMock()):
         await fetch_and_match()
 
-    fetch.assert_awaited_once_with(batch_size=1000, priority_state="CO")
+    fetch.assert_awaited_once_with(batch_size=1000, max_priority_tier=1)
     match.assert_awaited_once()
 
 

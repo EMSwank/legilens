@@ -66,3 +66,28 @@ async def test_next_queued_bills_with_priority_state_filter():
     result = await next_queued_bills(session, batch_size=10, priority_state="CO")
     assert result == []
     session.execute.assert_awaited_once()
+
+
+def test_tier_for_classifies_states():
+    """Pure mirror of the SQL _STATE_PRIORITY case. NY is tier 2 (deferred), not tier 1."""
+    from worker.queue import tier_for
+
+    assert tier_for("CO") == 0
+    for s in ("CA", "IL", "TX", "FL"):
+        assert tier_for(s) == 1, f"{s} must be tier 1"
+    assert tier_for("NY") == 2, "NY is deferred to tier 2 in WS2 v1"
+    assert tier_for("WY") == 2
+
+
+async def test_next_queued_bills_max_priority_tier_accepted():
+    """max_priority_tier kwarg is accepted and the query still executes.
+    (Row-level tier exclusion is verified by the read-only Neon probe, not here —
+    the mock session cannot evaluate the SQL .where().)"""
+    result_mock = MagicMock()
+    result_mock.scalars.return_value.all.return_value = []
+    session = AsyncMock()
+    session.execute = AsyncMock(return_value=result_mock)
+
+    result = await next_queued_bills(session, batch_size=10, max_priority_tier=1)
+    assert result == []
+    session.execute.assert_awaited_once()

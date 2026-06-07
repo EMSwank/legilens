@@ -13,6 +13,7 @@ from app.logging_filters import RedactAPIKeyFilter
 from app.models.bill import Bill
 from app.models.worker_state import WorkerState
 from app.services.legiscan import LegiScanClient
+from worker.queue import _TIER1_STATES
 from worker.tasks.evidence import extract_all_pending_evidence
 from worker.tasks.fetch_bill_texts import fetch_bill_texts
 from worker.tasks.ingest import ingest_all_states
@@ -26,25 +27,27 @@ BOOTSTRAP_DEBOUNCE = timedelta(days=7)
 
 
 async def fetch_and_match() -> None:
-    """Daily steady-state: fetch ~1k queued CO bill texts then run match phase.
+    """Daily steady-state: fetch ~1k queued bill texts (CO + tier-1 comparison
+    states, NY excluded) then run the match phase.
 
     Runs after run_full_pipeline (03:00). Quota guard inside fetch_bill_texts
-    prevents overrun even if called extra times.
+    (QUOTA_HARD_LIMIT=27_000/mo) prevents overrun even if called extra times.
 
-    priority_state="CO" is a deliberate gate, not an optimization. Without it,
-    fetch_bill_texts drains the *global* queue by priority (CO=0, top5=1,
-    rest=2); once CO is exhausted (~9 nights) the same cron would roll into
-    ~300k non-CO bills, fetching per-bill full_text via getBillText — roughly
-    11 months at the quota-capped ~1k/night, plus multiple GB of Postgres
-    storage. Populating the national corpus is a separate, explicit decision
-    (scope, storage tier, and method are unresolved); the steady-state loop
-    stays scoped to the focus state until then.
-    Remove this argument only with an explicit decision to fund a national
-    non-CO text fetch.
+    max_priority_tier=1 un-gates the fetch from CO-only (PR #58) to CO + tier-1.
+    This is the WS2 decision (docs/superpowers/specs/
+    2026-06-02-co-related-bills-coverage-tracker-design.md §4): fund a bounded
+    cross-state corpus so real cross-state copycat alerts can surface. New York
+    is deliberately deferred — it is ~150k bills (~6.5 months at the quota cap)
+    and is demoted to tier 2 in worker/queue.py; it is fetched only when the
+    national tail is explicitly funded and the Neon spend cap is raised.
+
+    Reassess trigger: when CO + tier-1 reach ~complete on /coverage, evaluate
+    whether real cross-state copycat_alerts appeared. If yes, plan widening
+    (re-promote NY, then the rest). If no, stop. Document in a follow-up.
     """
     logger.info("fetch_and_match: start")
-    count = await fetch_bill_texts(batch_size=1000, priority_state="CO")
-    logger.info("fetch_and_match: fetched %d CO bills", count)
+    count = await fetch_bill_texts(batch_size=1000, max_priority_tier=1)
+    logger.info("fetch_and_match: fetched %d bills (CO + tier-1, NY deferred)", count)
     if count > 0:
         await match_co_bills()
     # Refresh the coverage snapshot every night regardless of fetch count, and
@@ -70,21 +73,16 @@ async def _run_match_and_evidence() -> bool:
     return True
 
 
-# Tier-1 cross-state comparison states, ingested via a bounded per-state pass so
-# the comparison corpus never depends on pass 2's full 995-dataset, state_id-ordered
-# march completing — which in practice it does not. getDatasetList is ordered by
-# state_id; pass 2 restarts from index 0 every run and re-downloads weekly-changed
-# early-state datasets, so the frontier never crosses the state_id>=34 tail. TX is
-# state_id 43 and so sits in that never-reached tail (prod symptom: bills.TX = 0),
-# even though CA(5)/IL(13)/FL(9) land fine in pass 2's early window.
-#
-# This is coverage.SCOPE / queue._TOP5_STATES minus CO (already ingested in pass 1)
-# and minus NY: NY is state_id 32 and already fully ingested (~185k bills), so
-# re-pulling its dataset every run would be pure cost without reaching any missing
-# state. (Re-add NY here only alongside an explicit national-tail decision.)
-_TIER1_INGEST_STATES = ["CA", "IL", "TX", "FL"]
-
-
+# The cross-state comparison states are queue._TIER1_STATES (CA/IL/TX/FL) — imported so
+# this stays the single source of truth shared with the steady-state fetch tier and
+# coverage.SCOPE (one list, not three). They are ingested via the bounded per-state pass
+# below so the comparison corpus never depends on pass 2's full 995-dataset,
+# state_id-ordered march completing — which in practice it does not. getDatasetList is
+# ordered by state_id; pass 2 restarts from index 0 every run and re-downloads
+# weekly-changed early-state datasets, so the frontier never crosses the state_id>=34
+# tail. TX is state_id 43 → the never-reached tail (prod symptom: bills.TX = 0), even
+# though CA(5)/IL(13)/FL(9) land in pass 2's early window. CO is ingested in pass 1; NY
+# (state_id 32, already ~185k bills) is excluded — see queue._TIER1_STATES for why.
 async def _ingest_scope_states(client: LegiScanClient, states: list[str]) -> None:
     """Ingest each state's datasets via the server-side getDatasetList(state=)
     filter — the same mechanism pass 1 uses for CO.
@@ -115,7 +113,7 @@ async def run_full_pipeline() -> bool:
     and finally run match + evidence against the full corpus.
 
     Pass tier1 (_ingest_scope_states) is a bounded per-state ingest of the
-    cross-state comparison states (_TIER1_INGEST_STATES). It exists because pass 2
+    cross-state comparison states (queue._TIER1_STATES). It exists because pass 2
     iterates all ~995 datasets in state_id order from the top each run and never
     completes a full sweep, so the state_id>=34 tail — which includes TX — was
     never ingested. Running the wanted comparison states directly, up front, makes
@@ -151,9 +149,9 @@ async def run_full_pipeline() -> bool:
         # corpus is built regardless of whether pass 2's full march ever completes.
         logger.info(
             "Pipeline (pass=tier1): ingesting tier-1 comparison states %s",
-            _TIER1_INGEST_STATES,
+            _TIER1_STATES,
         )
-        await _ingest_scope_states(client, _TIER1_INGEST_STATES)
+        await _ingest_scope_states(client, _TIER1_STATES)
 
         try:
             all_datasets = await client.get_dataset_list()
