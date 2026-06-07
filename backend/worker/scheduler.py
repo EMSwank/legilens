@@ -13,6 +13,7 @@ from app.logging_filters import RedactAPIKeyFilter
 from app.models.bill import Bill
 from app.models.worker_state import WorkerState
 from app.services.legiscan import LegiScanClient
+from worker.queue import _TIER1_STATES
 from worker.tasks.evidence import extract_all_pending_evidence
 from worker.tasks.fetch_bill_texts import fetch_bill_texts
 from worker.tasks.ingest import ingest_all_states
@@ -72,21 +73,16 @@ async def _run_match_and_evidence() -> bool:
     return True
 
 
-# Tier-1 cross-state comparison states, ingested via a bounded per-state pass so
-# the comparison corpus never depends on pass 2's full 995-dataset, state_id-ordered
-# march completing — which in practice it does not. getDatasetList is ordered by
-# state_id; pass 2 restarts from index 0 every run and re-downloads weekly-changed
-# early-state datasets, so the frontier never crosses the state_id>=34 tail. TX is
-# state_id 43 and so sits in that never-reached tail (prod symptom: bills.TX = 0),
-# even though CA(5)/IL(13)/FL(9) land fine in pass 2's early window.
-#
-# This is coverage.SCOPE / queue._TOP5_STATES minus CO (already ingested in pass 1)
-# and minus NY: NY is state_id 32 and already fully ingested (~185k bills), so
-# re-pulling its dataset every run would be pure cost without reaching any missing
-# state. (Re-add NY here only alongside an explicit national-tail decision.)
-_TIER1_INGEST_STATES = ["CA", "IL", "TX", "FL"]
-
-
+# The cross-state comparison states are queue._TIER1_STATES (CA/IL/TX/FL) — imported so
+# this stays the single source of truth shared with the steady-state fetch tier and
+# coverage.SCOPE (one list, not three). They are ingested via the bounded per-state pass
+# below so the comparison corpus never depends on pass 2's full 995-dataset,
+# state_id-ordered march completing — which in practice it does not. getDatasetList is
+# ordered by state_id; pass 2 restarts from index 0 every run and re-downloads
+# weekly-changed early-state datasets, so the frontier never crosses the state_id>=34
+# tail. TX is state_id 43 → the never-reached tail (prod symptom: bills.TX = 0), even
+# though CA(5)/IL(13)/FL(9) land in pass 2's early window. CO is ingested in pass 1; NY
+# (state_id 32, already ~185k bills) is excluded — see queue._TIER1_STATES for why.
 async def _ingest_scope_states(client: LegiScanClient, states: list[str]) -> None:
     """Ingest each state's datasets via the server-side getDatasetList(state=)
     filter — the same mechanism pass 1 uses for CO.
@@ -117,7 +113,7 @@ async def run_full_pipeline() -> bool:
     and finally run match + evidence against the full corpus.
 
     Pass tier1 (_ingest_scope_states) is a bounded per-state ingest of the
-    cross-state comparison states (_TIER1_INGEST_STATES). It exists because pass 2
+    cross-state comparison states (queue._TIER1_STATES). It exists because pass 2
     iterates all ~995 datasets in state_id order from the top each run and never
     completes a full sweep, so the state_id>=34 tail — which includes TX — was
     never ingested. Running the wanted comparison states directly, up front, makes
@@ -153,9 +149,9 @@ async def run_full_pipeline() -> bool:
         # corpus is built regardless of whether pass 2's full march ever completes.
         logger.info(
             "Pipeline (pass=tier1): ingesting tier-1 comparison states %s",
-            _TIER1_INGEST_STATES,
+            _TIER1_STATES,
         )
-        await _ingest_scope_states(client, _TIER1_INGEST_STATES)
+        await _ingest_scope_states(client, _TIER1_STATES)
 
         try:
             all_datasets = await client.get_dataset_list()
